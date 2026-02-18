@@ -1,51 +1,62 @@
-const CACHE_NAME = 'rusvault-v1';
-const ASSETS = [
+var CACHE_NAME = 'rusvault-v2';
+var ASSETS = [
   './',
   './index.html',
-  './manifest.json',
-  'https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;600&family=Outfit:wght@300;400;600;800&display=swap'
+  './manifest.json'
 ];
 
-self.addEventListener('install', (e) => {
+self.addEventListener('install', function(e) {
   e.waitUntil(
-    caches.open(CACHE_NAME).then(cache => cache.addAll(ASSETS)).then(() => self.skipWaiting())
+    caches.open(CACHE_NAME).then(function(cache) {
+      return cache.addAll(ASSETS);
+    }).then(function() {
+      return self.skipWaiting();
+    })
   );
 });
 
-self.addEventListener('activate', (e) => {
+self.addEventListener('activate', function(e) {
   e.waitUntil(
-    caches.keys().then(keys =>
-      Promise.all(keys.filter(k => k !== CACHE_NAME).map(k => caches.delete(k)))
-    ).then(() => self.clients.claim())
+    caches.keys().then(function(keys) {
+      return Promise.all(
+        keys.filter(function(k) { return k !== CACHE_NAME; })
+            .map(function(k) { return caches.delete(k); })
+      );
+    }).then(function() {
+      return self.clients.claim();
+    })
   );
 });
 
-self.addEventListener('fetch', (e) => {
-  const url = new URL(e.request.url);
+self.addEventListener('fetch', function(e) {
+  var url = new URL(e.request.url);
 
-  // Network-first for translation API
-  if (url.hostname === 'translate.googleapis.com') {
-    e.respondWith(
-      fetch(e.request).catch(() => new Response(JSON.stringify([]), { headers: { 'Content-Type': 'application/json' } }))
-    );
+  // NEVER intercept external requests — let them go straight to network
+  if (url.origin !== self.location.origin) {
     return;
   }
 
-  // Cache-first for everything else
+  // For same-origin: cache-first, fallback to network
   e.respondWith(
-    caches.match(e.request).then(cached => {
+    caches.match(e.request).then(function(cached) {
       if (cached) return cached;
-      return fetch(e.request).then(resp => {
-        if (resp.ok && e.request.method === 'GET') {
-          const clone = resp.clone();
-          caches.open(CACHE_NAME).then(cache => cache.put(e.request, clone));
+      return fetch(e.request).then(function(resp) {
+        if (resp && resp.ok && e.request.method === 'GET') {
+          var clone = resp.clone();
+          caches.open(CACHE_NAME).then(function(cache) {
+            cache.put(e.request, clone);
+          });
         }
         return resp;
       });
-    }).catch(() => {
+    }).then(function(resp) {
+      if (resp) return resp;
+      return new Response('Not found', { status: 404 });
+    }).catch(function() {
       if (e.request.destination === 'document') {
         return caches.match('./index.html');
       }
+      return new Response('Offline', { status: 503 });
     })
   );
 });

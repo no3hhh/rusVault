@@ -903,11 +903,12 @@ input[type="file"] { display: none; }
 const RU_WORD = /([а-яА-ЯёЁ]+)/g;
 const RU_TEST = /[а-яА-ЯёЁ]/;
 
-// Safari-compatible fetch timeout (AbortSignal.timeout not supported)
-function fetchWithTimeout(url, opts = {}, ms = 8000) {
-  const ctrl = new AbortController();
-  const timer = setTimeout(() => ctrl.abort(), ms);
-  return fetch(url, { ...opts, signal: ctrl.signal }).finally(() => clearTimeout(timer));
+// Safari-compatible fetch timeout (no AbortController — uses Promise.race)
+function fetchWithTimeout(url, opts, ms) {
+  var timeout = new Promise(function(_, reject) {
+    setTimeout(function() { reject(new Error('timeout')); }, ms || 8000);
+  });
+  return Promise.race([fetch(url, opts || {}), timeout]);
 }
 const DB_NAME = 'rusvault';
 const DB_VERSION = 1;
@@ -1047,7 +1048,7 @@ function loadSettings() {
   try {
     const s = localStorage.getItem('rv_settings');
     if (s) settings = { ...settings, ...JSON.parse(s) };
-  } catch {}
+  } catch (e) {}
   applySettings();
 }
 
@@ -1189,7 +1190,7 @@ async function fetchYTSubtitles(videoId) {
       try {
         const subResp = await fetchWithTimeout(captionUrl, {}, 5000);
         if (subResp.ok) subText = await subResp.text();
-      } catch {}
+      } catch (e) {}
 
       if (!subText) {
         // Try via proxy
@@ -1197,38 +1198,46 @@ async function fetchYTSubtitles(videoId) {
           try {
             const pResp = await fetchWithTimeout(makeP2(captionUrl), {}, 5000);
             if (pResp.ok) { subText = await pResp.text(); break; }
-          } catch { continue; }
+          } catch (e) { continue; }
         }
       }
 
       if (subText) {
         return parseSubtitles(subText);
       }
-    } catch { continue; }
+    } catch (e) { continue; }
   }
 
   // Strategy 2: Invidious instances as fallback
   const invInstances = [
     'https://inv.nadeko.net',
+    'https://iv.ggtyler.dev',
     'https://invidious.fdn.fr',
     'https://vid.puffyan.us',
-    'https://invidious.nerdvpn.de',
-    'https://iv.ggtyler.dev'
+    'https://invidious.nerdvpn.de'
   ];
 
   for (const base of invInstances) {
     try {
-      const resp = await fetchWithTimeout(`${base}/api/v1/captions/${videoId}`, {}, 5000);
+      const resp = await fetchWithTimeout(base + '/api/v1/captions/' + videoId, {}, 6000);
       if (!resp.ok) continue;
       const data = await resp.json();
-      const ruCap = data.captions?.find(c =>
-        c.language_code === 'ru' || c.label?.toLowerCase().includes('russian') || c.label?.toLowerCase().includes('русс')
-      );
-      if (!ruCap) continue;
-      const subResp = await fetchWithTimeout(`${base}${ruCap.url}&fmt=vtt`, {}, 5000);
+      var ruCap = null;
+      var caps = (data.captions || []);
+      for (var ci = 0; ci < caps.length; ci++) {
+        var c = caps[ci];
+        var lc = (c.language_code || '').toLowerCase();
+        var lb = (c.label || '').toLowerCase();
+        if (lc === 'ru' || lb.indexOf('russian') > -1 || lb.indexOf('русс') > -1) {
+          ruCap = c; break;
+        }
+      }
+      if (!ruCap || !ruCap.url) continue;
+      const subResp = await fetchWithTimeout(base + ruCap.url + '&fmt=vtt', {}, 6000);
       if (!subResp.ok) continue;
-      return cleanVTT(await subResp.text());
-    } catch { continue; }
+      var vtt = await subResp.text();
+      if (vtt && vtt.length > 50) return cleanVTT(vtt);
+    } catch (e) { continue; }
   }
 
   return null;
@@ -1273,7 +1282,7 @@ function extractCaptionUrl(html, videoId) {
         if (autoRu && autoRu.baseUrl) {
           return autoRu.baseUrl;
         }
-      } catch {}
+      } catch (e) {}
     }
 
     // Alternative: find timedtext URL directly
@@ -1316,7 +1325,7 @@ function parseSubtitles(text) {
         .join(' ')
         .replace(/\s{2,}/g, ' ')
         .trim();
-    } catch {}
+    } catch (e) {}
   }
 
   // Handle VTT format
