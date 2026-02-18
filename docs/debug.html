@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>YT Debug v3</title>
+<title>YT Debug v4</title>
 <style>
 * { margin:0; padding:0; box-sizing:border-box; }
 body { font-family: -apple-system, sans-serif; background:#0a0a14; color:#e8e8f0; padding:20px; }
@@ -19,7 +19,7 @@ button { padding:12px 20px; background:#e94560; color:#fff; border:none; border-
 </head>
 <body>
 
-<h1>🔍 YT Debug v3 — no AbortController</h1>
+<h1>🔍 YT Debug v4</h1>
 <input type="url" id="url" placeholder="https://youtube.com/watch?v=…">
 <button onclick="runTest()">Tester</button>
 <div class="log" id="log">En attente…</div>
@@ -35,7 +35,6 @@ function out(msg, cls) {
   logEl.scrollTop = logEl.scrollHeight;
 }
 
-// Zero AbortController — just Promise.race
 function fetchT(url, ms) {
   var timeout = new Promise(function(_, reject) {
     setTimeout(function() { reject(new Error('timeout ' + ms + 'ms')); }, ms || 8000);
@@ -48,6 +47,11 @@ function extractId(url) {
   return m ? m[1] : null;
 }
 
+function isGoogleError(text) {
+  var s = text.substring(0, 500).toLowerCase();
+  return (s.indexOf('sorry') > -1 && s.indexOf('automated') > -1) || (s.indexOf('<html') > -1 && s.indexOf('sorry') > -1);
+}
+
 async function runTest() {
   logEl.innerHTML = '';
   var url = document.getElementById('url').value.trim();
@@ -56,25 +60,77 @@ async function runTest() {
   if (!vid) { out('URL invalide', 'err'); return; }
   out('Video ID: ' + vid, 'ok');
 
-  // Test 0: est-ce que fetch marche tout court?
+  // ══ INVIDIOUS FIRST ══
   out('');
-  out('== TEST BASIQUE: fetch marche? ==', 'info');
-  try {
-    var tr = await fetch('https://httpbin.org/get');
-    out('fetch httpbin: HTTP ' + tr.status, 'ok');
-  } catch(e) {
-    out('fetch httpbin ECHEC: ' + e.message, 'err');
+  out('== INVIDIOUS (prioritaire) ==', 'info');
+
+  var invs = [
+    'https://inv.nadeko.net',
+    'https://iv.ggtyler.dev',
+    'https://invidious.fdn.fr',
+    'https://vid.puffyan.us',
+    'https://invidious.nerdvpn.de'
+  ];
+
+  for (var k = 0; k < invs.length; k++) {
+    var base = invs[k];
+    out('');
+    out('-- ' + base + ' --', 'info');
+    try {
+      var r = await fetchT(base + '/api/v1/captions/' + vid, 8000);
+      out('  HTTP: ' + r.status, r.ok ? 'ok' : 'err');
+      if (!r.ok) continue;
+      var data = await r.json();
+      var caps = data.captions || [];
+      out('  ' + caps.length + ' caption(s)', 'ok');
+
+      var ruCap = null;
+      for (var c = 0; c < caps.length; c++) {
+        var cap = caps[c];
+        var lc = (cap.language_code || '').toLowerCase();
+        var lb = (cap.label || '').toLowerCase();
+        var isRu = lc === 'ru' || lb.indexOf('russian') > -1 || lb.indexOf('русс') > -1 || lb.indexOf('russe') > -1;
+        out('    [' + (cap.language_code || 'undefined') + '] "' + (cap.label || '') + '"' + (isRu ? ' << RUSSE' : ''), isRu ? 'ok' : '');
+        if (isRu) { ruCap = cap; }
+      }
+
+      if (!ruCap) { out('  Pas de caption russe trouvee', 'warn'); continue; }
+      if (!ruCap.url) { out('  Caption russe sans URL!', 'err'); continue; }
+
+      // Try downloading VTT
+      var subUrl = base + ruCap.url;
+      if (subUrl.indexOf('fmt=') === -1) subUrl += '&fmt=vtt';
+      out('  Telechargement VTT: ' + subUrl.substring(0, 100) + '...');
+
+      try {
+        var vr = await fetchT(subUrl, 8000);
+        out('  VTT HTTP: ' + vr.status, vr.ok ? 'ok' : 'err');
+        if (vr.ok) {
+          var vtt = await vr.text();
+          if (isGoogleError(vtt)) {
+            out('  BLOQUE par Google (Sorry page)', 'err');
+          } else {
+            out('  VTT recu: ' + vtt.length + ' chars', 'ok');
+            out('  Apercu: ' + vtt.substring(0, 300), 'ok');
+            out('');
+            out('  >>> CETTE METHODE FONCTIONNE! <<<', 'ok');
+          }
+        }
+      } catch (ve) {
+        out('  VTT erreur: ' + ve.message, 'err');
+      }
+    } catch (err) {
+      out('  ' + err.message, 'err');
+    }
   }
 
-  // CORS Proxies
+  // ══ CORS PROXIES ══
   out('');
-  out('== CORS PROXIES ==', 'info');
-  var ytUrl = 'https://www.youtube.com/watch?v=' + vid;
+  out('== CORS PROXIES (fallback) ==', 'info');
 
   var proxies = [
-    ['codetabs', 'https://api.codetabs.com/v1/proxy?quest=' + encodeURIComponent(ytUrl)],
-    ['corsproxy.io', 'https://corsproxy.io/?' + encodeURIComponent(ytUrl)],
-    ['allorigins', 'https://api.allorigins.win/raw?url=' + encodeURIComponent(ytUrl)]
+    ['codetabs', 'https://api.codetabs.com/v1/proxy?quest=' + encodeURIComponent('https://www.youtube.com/watch?v=' + vid)],
+    ['allorigins', 'https://api.allorigins.win/raw?url=' + encodeURIComponent('https://www.youtube.com/watch?v=' + vid)]
   ];
 
   for (var i = 0; i < proxies.length; i++) {
@@ -90,84 +146,8 @@ async function runTest() {
       out('  Taille: ' + html.length + ' chars', 'ok');
       var hasCaptions = html.indexOf('captionTracks') > -1;
       out('  captionTracks: ' + (hasCaptions ? 'OUI' : 'NON'), hasCaptions ? 'ok' : 'warn');
-      if (!hasCaptions) {
-        out('  Debut: ' + html.substring(0, 300), 'warn');
-        continue;
-      }
-      var m = html.match(/"captionTracks"\s*:\s*(\[.*?\])/);
-      if (m) {
-        var js = m[1].replace(/\\u0026/g, '&').replace(/\\"/g, '"');
-        var tracks = JSON.parse(js);
-        out('  ' + tracks.length + ' piste(s)', 'ok');
-        for (var j = 0; j < tracks.length; j++) {
-          var t = tracks[j];
-          var lang = t.languageCode || '?';
-          var nm = (t.name && t.name.simpleText) || '';
-          var ru = (lang === 'ru') || nm.toLowerCase().indexOf('русс') > -1;
-          out('    [' + lang + '] ' + nm + (ru ? ' << RUSSE' : ''), ru ? 'ok' : '');
-          if (ru && t.baseUrl) {
-            out('    Fetch subs...');
-            try {
-              // Build proxy URL for the subtitle baseUrl
-              var subProxy;
-              if (name === 'codetabs') subProxy = 'https://api.codetabs.com/v1/proxy?quest=' + encodeURIComponent(t.baseUrl);
-              else if (name === 'corsproxy.io') subProxy = 'https://corsproxy.io/?' + encodeURIComponent(t.baseUrl);
-              else subProxy = 'https://api.allorigins.win/raw?url=' + encodeURIComponent(t.baseUrl);
-              var sr = await fetchT(subProxy, 8000);
-              if (sr.ok) {
-                var stxt = await sr.text();
-                out('    GOT ' + stxt.length + ' chars', 'ok');
-                out('    ' + stxt.substring(0, 250), 'ok');
-              } else {
-                out('    sub HTTP ' + sr.status, 'err');
-              }
-            } catch(se) { out('    sub err: ' + se.message, 'err'); }
-          }
-        }
-      }
     } catch (err) {
       out('  ERREUR: ' + err.message, 'err');
-    }
-  }
-
-  // Invidious
-  out('');
-  out('== INVIDIOUS ==', 'info');
-  var invs = [
-    'https://inv.nadeko.net',
-    'https://invidious.fdn.fr',
-    'https://vid.puffyan.us',
-    'https://invidious.nerdvpn.de',
-    'https://iv.ggtyler.dev'
-  ];
-  for (var k = 0; k < invs.length; k++) {
-    var base = invs[k];
-    out('');
-    out('-- ' + base + ' --', 'info');
-    try {
-      var r = await fetchT(base + '/api/v1/captions/' + vid, 6000);
-      out('  HTTP: ' + r.status, r.ok ? 'ok' : 'err');
-      if (!r.ok) continue;
-      var data = await r.json();
-      var caps = data.captions || [];
-      out('  ' + caps.length + ' caption(s)', 'ok');
-      for (var c = 0; c < caps.length; c++) {
-        var cap = caps[c];
-        var isRu = cap.language_code === 'ru';
-        out('    [' + cap.language_code + '] ' + (cap.label||'') + (isRu ? ' << RUSSE' : ''), isRu ? 'ok' : '');
-        if (isRu && cap.url) {
-          try {
-            var vr = await fetchT(base + cap.url + '&fmt=vtt', 6000);
-            if (vr.ok) {
-              var vtt = await vr.text();
-              out('    VTT: ' + vtt.length + ' chars', 'ok');
-              out('    ' + vtt.substring(0, 150), 'ok');
-            }
-          } catch(ve) { out('    VTT: ' + ve.message, 'err'); }
-        }
-      }
-    } catch(e2) {
-      out('  ' + e2.message, 'err');
     }
   }
 

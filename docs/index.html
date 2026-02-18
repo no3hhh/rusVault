@@ -1166,51 +1166,9 @@ function extractYTId(url) {
 }
 
 async function fetchYTSubtitles(videoId) {
-  // Strategy 1: Fetch YouTube page via CORS proxies, extract captions
-  const corsProxies = [
-    (u) => `https://api.codetabs.com/v1/proxy?quest=${encodeURIComponent(u)}`,
-    (u) => `https://corsproxy.io/?${encodeURIComponent(u)}`,
-    (u) => `https://api.allorigins.win/raw?url=${encodeURIComponent(u)}`,
-  ];
 
-  const ytPageUrl = `https://www.youtube.com/watch?v=${videoId}`;
-
-  for (const makeProxy of corsProxies) {
-    try {
-      const proxyUrl = makeProxy(ytPageUrl);
-      const resp = await fetchWithTimeout(proxyUrl, {}, 8000);
-      if (!resp.ok) continue;
-      const html = await resp.text();
-
-      // Extract captionTracks from ytInitialPlayerResponse
-      const captionUrl = extractCaptionUrl(html, videoId);
-      if (!captionUrl) continue;
-
-      // Fetch the actual caption content (might also need proxy)
-      let subText = null;
-      try {
-        const subResp = await fetchWithTimeout(captionUrl, {}, 5000);
-        if (subResp.ok) subText = await subResp.text();
-      } catch (e) {}
-
-      if (!subText) {
-        // Try via proxy
-        for (const makeP2 of corsProxies) {
-          try {
-            const pResp = await fetchWithTimeout(makeP2(captionUrl), {}, 5000);
-            if (pResp.ok) { subText = await pResp.text(); break; }
-          } catch (e) { continue; }
-        }
-      }
-
-      if (subText) {
-        return parseSubtitles(subText);
-      }
-    } catch (e) { continue; }
-  }
-
-  // Strategy 2: Invidious instances as fallback
-  const invInstances = [
+  // ── Strategy 1: Invidious (most reliable) ──
+  var invInstances = [
     'https://inv.nadeko.net',
     'https://iv.ggtyler.dev',
     'https://invidious.fdn.fr',
@@ -1218,30 +1176,78 @@ async function fetchYTSubtitles(videoId) {
     'https://invidious.nerdvpn.de'
   ];
 
-  for (const base of invInstances) {
+  for (var ii = 0; ii < invInstances.length; ii++) {
+    var base = invInstances[ii];
     try {
-      const resp = await fetchWithTimeout(base + '/api/v1/captions/' + videoId, {}, 6000);
+      var resp = await fetchWithTimeout(base + '/api/v1/captions/' + videoId, {}, 8000);
       if (!resp.ok) continue;
-      const data = await resp.json();
+      var data = await resp.json();
       var ruCap = null;
       var caps = (data.captions || []);
       for (var ci = 0; ci < caps.length; ci++) {
         var c = caps[ci];
         var lc = (c.language_code || '').toLowerCase();
         var lb = (c.label || '').toLowerCase();
-        if (lc === 'ru' || lb.indexOf('russian') > -1 || lb.indexOf('русс') > -1) {
+        if (lc === 'ru' || lb.indexOf('russian') > -1 || lb.indexOf('русс') > -1 || lb.indexOf('russe') > -1) {
           ruCap = c; break;
         }
       }
       if (!ruCap || !ruCap.url) continue;
-      const subResp = await fetchWithTimeout(base + ruCap.url + '&fmt=vtt', {}, 6000);
+
+      // Download VTT
+      var subUrl = base + ruCap.url;
+      if (subUrl.indexOf('fmt=') === -1) subUrl += '&fmt=vtt';
+      var subResp = await fetchWithTimeout(subUrl, {}, 8000);
       if (!subResp.ok) continue;
       var vtt = await subResp.text();
-      if (vtt && vtt.length > 50) return cleanVTT(vtt);
+      // Validate: must not be a Google error page
+      if (vtt && vtt.length > 50 && !isGoogleError(vtt)) {
+        return cleanVTT(vtt);
+      }
+    } catch (e) { continue; }
+  }
+
+  // ── Strategy 2: CORS proxies (find caption URL from YouTube page) ──
+  var corsProxies = [
+    function(u) { return 'https://api.codetabs.com/v1/proxy?quest=' + encodeURIComponent(u); },
+    function(u) { return 'https://api.allorigins.win/raw?url=' + encodeURIComponent(u); }
+  ];
+
+  var ytPageUrl = 'https://www.youtube.com/watch?v=' + videoId;
+
+  for (var pi = 0; pi < corsProxies.length; pi++) {
+    var makeProxy = corsProxies[pi];
+    try {
+      var pResp = await fetchWithTimeout(makeProxy(ytPageUrl), {}, 10000);
+      if (!pResp.ok) continue;
+      var html = await pResp.text();
+
+      var captionUrl = extractCaptionUrl(html, videoId);
+      if (!captionUrl) continue;
+
+      // Try downloading subtitle content via each proxy
+      for (var p2 = 0; p2 < corsProxies.length; p2++) {
+        try {
+          var sResp = await fetchWithTimeout(corsProxies[p2](captionUrl), {}, 8000);
+          if (!sResp.ok) continue;
+          var subText = await sResp.text();
+          // CRITICAL: check it's not a Google "Sorry" error page
+          if (subText && subText.length > 50 && !isGoogleError(subText)) {
+            return parseSubtitles(subText);
+          }
+        } catch (e) { continue; }
+      }
     } catch (e) { continue; }
   }
 
   return null;
+}
+
+// Detect Google's "Sorry, automated queries" block page
+function isGoogleError(text) {
+  var start = text.substring(0, 500).toLowerCase();
+  return start.indexOf('sorry') > -1 && start.indexOf('automated queries') > -1
+      || start.indexOf('<html') > -1 && start.indexOf('sorry') > -1;
 }
 
 function extractCaptionUrl(html, videoId) {
