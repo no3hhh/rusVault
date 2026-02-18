@@ -791,6 +791,7 @@ input[type="file"] { display: none; }
       <button class="action-btn secondary" id="btnImport">📥 Import Database (JSON)</button>
       <input type="file" id="importDbInput" accept=".json">
       <button class="action-btn danger" id="btnClear">🗑 Clear All Data</button>
+      <button class="action-btn secondary" id="btnResetSW" style="margin-top:4px;">🔄 Reset Service Worker (si bugs)</button>
 
       <div style="margin-top:24px;text-align:center;color:var(--muted);font-size:12px;">
         RusVault PWA v1.0<br>
@@ -1906,12 +1907,34 @@ async function init() {
   console.log(`[RusVault] Ready. ${wordCache.size} words cached.`);
 }
 
-init().catch(err => console.error('[RusVault] Init error:', err));
+init().catch(function(err) { console.error('[RusVault] Init error:', err); });
 
-// Service Worker registration
+// Service Worker — force update
 if ('serviceWorker' in navigator) {
-  navigator.serviceWorker.register('sw.js').catch(() => {});
+  navigator.serviceWorker.getRegistrations().then(function(regs) {
+    regs.forEach(function(reg) { reg.update(); });
+  });
+  navigator.serviceWorker.register('sw.js').catch(function() {});
 }
+
+// Reset SW button
+document.getElementById('btnResetSW').addEventListener('click', async function() {
+  if (!('serviceWorker' in navigator)) { showToast('Pas de Service Worker'); return; }
+  try {
+    var regs = await navigator.serviceWorker.getRegistrations();
+    for (var i = 0; i < regs.length; i++) {
+      await regs[i].unregister();
+    }
+    var keys = await caches.keys();
+    for (var j = 0; j < keys.length; j++) {
+      await caches.delete(keys[j]);
+    }
+    showToast('✓ Reset OK ! Rechargement…');
+    setTimeout(function() { window.location.reload(); }, 1000);
+  } catch (e) {
+    showToast('Erreur: ' + e.message);
+  }
+});
 
 })();
 </script>
