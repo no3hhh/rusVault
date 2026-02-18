@@ -853,22 +853,25 @@ input[type="file"] { display: none; }
 <!-- ══ YouTube Modal ══ -->
 <div class="modal-overlay" id="ytModal">
   <div class="modal">
-    <h2>🎥 YouTube Transcript</h2>
+    <h2>🎥 YouTube → RusVault</h2>
 
-    <div style="margin-bottom:14px;">
-      <div style="font-size:14px;font-weight:600;margin-bottom:6px;">Option 1 — URL automatique</div>
-      <input type="url" id="ytUrl" placeholder="https://youtube.com/watch?v=…">
-      <button class="action-btn primary" id="ytSubmitUrl" style="margin-bottom:0;">🔍 Chercher les sous-titres</button>
-      <div id="ytStatus" style="font-size:12px;color:var(--muted);text-align:center;min-height:18px;margin-top:6px;"></div>
+    <div style="background:var(--surface2);border-radius:10px;padding:12px;margin-bottom:14px;line-height:1.6;">
+      <div style="font-size:14px;font-weight:700;margin-bottom:6px;">📋 Comment récupérer le transcript</div>
+      <div style="font-size:13px;color:var(--muted);">
+        <b>Sur iPhone Safari :</b><br>
+        1. Sur la vidéo YouTube, tape <b>⋯</b> (sous la vidéo)<br>
+        2. Tape <b>Afficher la transcription</b><br>
+        3. Sélectionne tout le texte → <b>Copier</b><br>
+        4. Colle ici ↓
+      </div>
     </div>
 
-    <div style="text-align:center;color:var(--muted);font-size:12px;margin:8px 0;padding:8px;background:var(--surface2);border-radius:8px;line-height:1.5;">
-      <b>Option 2 — Copier manuellement</b><br>
-      Sur YouTube → <b>⋯</b> sous la vidéo → <b>Afficher la transcription</b><br>
-      Sélectionne tout le texte et colle-le ici ↓
-    </div>
-    <textarea id="ytText" placeholder="Colle le transcript ici…" style="min-height:120px;"></textarea>
-    <button class="action-btn primary" id="ytSubmitText">📄 Importer le texte</button>
+    <textarea id="ytText" placeholder="Colle le transcript russe ici…
+&#10;Exemple :&#10;0:01 Привет всем&#10;0:05 Сегодня мы поговорим о..." style="min-height:160px;"></textarea>
+    
+    <input type="text" id="ytTitle" placeholder="Titre (optionnel, ex: nom de la vidéo)">
+    
+    <button class="action-btn primary" id="ytSubmitText">📄 Importer</button>
     <button class="action-btn secondary" style="margin-top:8px" onclick="closeModal('ytModal')">Annuler</button>
   </div>
 </div>
@@ -1117,245 +1120,19 @@ document.getElementById('fileInput').addEventListener('change', (e) => {
 });
 
 // ── YouTube ──
-document.getElementById('btnYT').addEventListener('click', () => openModal('ytModal'));
+document.getElementById('btnYT').addEventListener('click', function() { openModal('ytModal'); });
 
-// Option 1: URL auto-fetch
-document.getElementById('ytSubmitUrl').addEventListener('click', async () => {
-  const url = document.getElementById('ytUrl').value.trim();
-  const status = document.getElementById('ytStatus');
-  if (!url) { showToast('Entre une URL YouTube'); return; }
-
-  const videoId = extractYTId(url);
-  if (!videoId) { showToast('❌ URL YouTube invalide'); return; }
-
-  status.innerHTML = '<span class="spinner"></span> Recherche des sous-titres…';
-
-  try {
-    const subs = await fetchYTSubtitles(videoId);
-    if (subs && subs.length > 20) {
-      loadText(subs, 'YouTube: ' + videoId);
-      closeModal('ytModal');
-      document.getElementById('ytUrl').value = '';
-      status.textContent = '';
-      showToast('✓ Sous-titres importés !');
-    } else {
-      status.innerHTML = '⚠️ Pas de sous-titres russes trouvés.<br>Essaie l\'option 2 (copier-coller).';
-    }
-  } catch (err) {
-    console.error('[RusVault YT]', err);
-    status.innerHTML = '⚠️ Impossible de récupérer.<br>Essaie l\'option 2 (copier-coller).';
-  }
-});
-
-// Option 2: Manual paste
-document.getElementById('ytSubmitText').addEventListener('click', () => {
-  const text = document.getElementById('ytText').value.trim();
+document.getElementById('ytSubmitText').addEventListener('click', function() {
+  var text = document.getElementById('ytText').value.trim();
   if (!text) { showToast('Colle du texte d\'abord'); return; }
-  const url = document.getElementById('ytUrl').value.trim();
-  const cleaned = cleanTranscript(text);
-  loadText(cleaned, url ? 'YouTube: ' + url : 'YouTube transcript');
+  var title = document.getElementById('ytTitle').value.trim() || 'YouTube transcript';
+  var cleaned = cleanTranscript(text);
+  if (cleaned.length < 10) { showToast('Pas assez de texte'); return; }
+  loadText(cleaned, title);
   closeModal('ytModal');
-  document.getElementById('ytUrl').value = '';
   document.getElementById('ytText').value = '';
-  document.getElementById('ytStatus').textContent = '';
+  document.getElementById('ytTitle').value = '';
 });
-
-function extractYTId(url) {
-  const m = url.match(/(?:v=|youtu\.be\/|\/shorts\/)([a-zA-Z0-9_-]{11})/);
-  return m ? m[1] : null;
-}
-
-async function fetchYTSubtitles(videoId) {
-
-  // ── Strategy 1: Invidious (most reliable) ──
-  var invInstances = [
-    'https://inv.nadeko.net',
-    'https://iv.ggtyler.dev',
-    'https://invidious.fdn.fr',
-    'https://vid.puffyan.us',
-    'https://invidious.nerdvpn.de'
-  ];
-
-  for (var ii = 0; ii < invInstances.length; ii++) {
-    var base = invInstances[ii];
-    try {
-      var resp = await fetchWithTimeout(base + '/api/v1/captions/' + videoId, {}, 8000);
-      if (!resp.ok) continue;
-      var data = await resp.json();
-      var ruCap = null;
-      var caps = (data.captions || []);
-      for (var ci = 0; ci < caps.length; ci++) {
-        var c = caps[ci];
-        var lc = (c.language_code || '').toLowerCase();
-        var lb = (c.label || '').toLowerCase();
-        if (lc === 'ru' || lb.indexOf('russian') > -1 || lb.indexOf('русс') > -1 || lb.indexOf('russe') > -1) {
-          ruCap = c; break;
-        }
-      }
-      if (!ruCap || !ruCap.url) continue;
-
-      // Download VTT
-      var subUrl = base + ruCap.url;
-      if (subUrl.indexOf('fmt=') === -1) subUrl += '&fmt=vtt';
-      var subResp = await fetchWithTimeout(subUrl, {}, 8000);
-      if (!subResp.ok) continue;
-      var vtt = await subResp.text();
-      // Validate: must not be a Google error page
-      if (vtt && vtt.length > 50 && !isGoogleError(vtt)) {
-        return cleanVTT(vtt);
-      }
-    } catch (e) { continue; }
-  }
-
-  // ── Strategy 2: CORS proxies (find caption URL from YouTube page) ──
-  var corsProxies = [
-    function(u) { return 'https://api.codetabs.com/v1/proxy?quest=' + encodeURIComponent(u); },
-    function(u) { return 'https://api.allorigins.win/raw?url=' + encodeURIComponent(u); }
-  ];
-
-  var ytPageUrl = 'https://www.youtube.com/watch?v=' + videoId;
-
-  for (var pi = 0; pi < corsProxies.length; pi++) {
-    var makeProxy = corsProxies[pi];
-    try {
-      var pResp = await fetchWithTimeout(makeProxy(ytPageUrl), {}, 10000);
-      if (!pResp.ok) continue;
-      var html = await pResp.text();
-
-      var captionUrl = extractCaptionUrl(html, videoId);
-      if (!captionUrl) continue;
-
-      // Try downloading subtitle content via each proxy
-      for (var p2 = 0; p2 < corsProxies.length; p2++) {
-        try {
-          var sResp = await fetchWithTimeout(corsProxies[p2](captionUrl), {}, 8000);
-          if (!sResp.ok) continue;
-          var subText = await sResp.text();
-          // CRITICAL: check it's not a Google "Sorry" error page
-          if (subText && subText.length > 50 && !isGoogleError(subText)) {
-            return parseSubtitles(subText);
-          }
-        } catch (e) { continue; }
-      }
-    } catch (e) { continue; }
-  }
-
-  return null;
-}
-
-// Detect Google's "Sorry, automated queries" block page
-function isGoogleError(text) {
-  var start = text.substring(0, 500).toLowerCase();
-  return start.indexOf('sorry') > -1 && start.indexOf('automated queries') > -1
-      || start.indexOf('<html') > -1 && start.indexOf('sorry') > -1;
-}
-
-function extractCaptionUrl(html, videoId) {
-  try {
-    // Find captionTracks in the page source
-    const patterns = [
-      /"captionTracks"\s*:\s*(\[.*?\])/,
-      /captionTracks\\?":\s*(\[.*?\])/,
-    ];
-
-    for (const pat of patterns) {
-      const match = html.match(pat);
-      if (!match) continue;
-
-      let jsonStr = match[1];
-      // Unescape if needed
-      if (jsonStr.includes('\\u0026')) {
-        jsonStr = jsonStr.replace(/\\u0026/g, '&');
-      }
-      if (jsonStr.includes('\\"')) {
-        jsonStr = jsonStr.replace(/\\"/g, '"');
-      }
-
-      try {
-        const tracks = JSON.parse(jsonStr);
-        // Look for Russian
-        const ruTrack = tracks.find(t =>
-          t.languageCode === 'ru' ||
-          (t.name && (t.name.simpleText || '').toLowerCase().includes('русс')) ||
-          (t.vssId && t.vssId.includes('.ru'))
-        );
-        if (ruTrack && ruTrack.baseUrl) {
-          return ruTrack.baseUrl;
-        }
-        // Also try auto-generated Russian
-        const autoRu = tracks.find(t =>
-          t.vssId && (t.vssId.includes('a.ru') || t.vssId.includes('.ru'))
-        );
-        if (autoRu && autoRu.baseUrl) {
-          return autoRu.baseUrl;
-        }
-      } catch (e) {}
-    }
-
-    // Alternative: find timedtext URL directly
-    const ttMatch = html.match(/https?:\/\/www\.youtube\.com\/api\/timedtext[^"\\]*/g);
-    if (ttMatch) {
-      for (const ttUrl of ttMatch) {
-        const cleaned = ttUrl.replace(/\\u0026/g, '&');
-        if (cleaned.includes('lang=ru') || cleaned.includes('ru')) {
-          return cleaned;
-        }
-      }
-    }
-  } catch (err) {
-    console.error('[RusVault] Caption extraction error:', err);
-  }
-  return null;
-}
-
-function parseSubtitles(text) {
-  // Handle XML format (YouTube timedtext)
-  if (text.trim().startsWith('<?xml') || text.trim().startsWith('<transcript')) {
-    const matches = text.match(/<text[^>]*>([\s\S]*?)<\/text>/g);
-    if (matches) {
-      return matches
-        .map(m => m.replace(/<[^>]+>/g, '').replace(/&amp;/g, '&').replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/&#39;/g, "'").replace(/&quot;/g, '"').trim())
-        .filter(t => t.length > 0)
-        .join(' ')
-        .replace(/\s{2,}/g, ' ');
-    }
-  }
-
-  // Handle JSON format
-  if (text.trim().startsWith('{') || text.trim().startsWith('[')) {
-    try {
-      const data = JSON.parse(text);
-      const events = data.events || [];
-      return events
-        .filter(e => e.segs)
-        .map(e => e.segs.map(s => s.utf8 || '').join(''))
-        .join(' ')
-        .replace(/\s{2,}/g, ' ')
-        .trim();
-    } catch (e) {}
-  }
-
-  // Handle VTT format
-  if (text.includes('WEBVTT')) {
-    return cleanVTT(text);
-  }
-
-  // Fallback: just clean the text
-  return text.replace(/<[^>]+>/g, '').replace(/\s{2,}/g, ' ').trim();
-}
-
-function cleanVTT(vtt) {
-  return vtt
-    .replace(/WEBVTT[\s\S]*?\n\n/, '')
-    .replace(/\d{2}:\d{2}[\d:.→\-\>]+/g, '')
-    .replace(/<[^>]+>/g, '')
-    .replace(/\n{2,}/g, '\n')
-    .trim()
-    .split('\n')
-    .filter(l => l.trim() && l.trim().length > 1)
-    .join(' ')
-    .replace(/\s{2,}/g, ' ');
-}
 
 function cleanTranscript(text) {
   return text
@@ -1364,7 +1141,8 @@ function cleanTranscript(text) {
     .replace(/\n{2,}/g, '\n')
     .trim()
     .split('\n')
-    .filter(l => l.trim().length > 0)
+    .map(function(l) { return l.trim(); })
+    .filter(function(l) { return l.length > 0; })
     .join(' ')
     .replace(/\s{2,}/g, ' ');
 }
