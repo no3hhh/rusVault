@@ -1,9 +1,1910 @@
-
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Noctem Pulse - Voice Actor</title>
-  ...
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover, user-scalable=no">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="RusVault">
+<meta name="theme-color" content="#0a0a14">
+<link rel="manifest" href="manifest.json">
+<link rel="apple-touch-icon" href="icon-192.png">
+<title>RusVault</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;600&family=Outfit:wght@300;400;600;800&display=swap" rel="stylesheet">
+<style>
+/* ══════════════════════════════════════════
+   CSS VARIABLES & RESET
+   ══════════════════════════════════════════ */
+:root {
+  --bg: #0a0a14;
+  --surface: #12121f;
+  --surface2: #1a1a2e;
+  --surface3: #222240;
+  --accent: #e94560;
+  --accent-dim: rgba(233,69,96,0.15);
+  --green: #4ecca3;
+  --green-dim: rgba(78,204,163,0.15);
+  --blue: #5b8def;
+  --blue-dim: rgba(91,141,239,0.18);
+  --yellow: #f0c040;
+  --yellow-dim: rgba(240,192,64,0.18);
+  --text: #e8e8f0;
+  --muted: #6a6a80;
+  --border: #2a2a3e;
+  --radius: 14px;
+  --safe-top: env(safe-area-inset-top, 0px);
+  --safe-bottom: env(safe-area-inset-bottom, 0px);
+  --tab-h: 64px;
+}
+[data-theme="light"] {
+  --bg: #f5f5fa;
+  --surface: #ffffff;
+  --surface2: #eeeef4;
+  --surface3: #e0e0ea;
+  --text: #1a1a2e;
+  --muted: #888;
+  --border: #d8d8e4;
+  --accent-dim: rgba(233,69,96,0.1);
+  --green-dim: rgba(78,204,163,0.12);
+  --blue-dim: rgba(91,141,239,0.12);
+  --yellow-dim: rgba(200,160,40,0.15);
+}
+
+*, *::before, *::after { margin:0; padding:0; box-sizing:border-box; }
+html { height:100%; -webkit-text-size-adjust:100%; }
+body {
+  font-family: 'Outfit', -apple-system, sans-serif;
+  background: var(--bg);
+  color: var(--text);
+  height: 100%;
+  overflow: hidden;
+  -webkit-font-smoothing: antialiased;
+  -webkit-tap-highlight-color: transparent;
+}
+
+/* ══════════════════════════════════════════
+   APP SHELL
+   ══════════════════════════════════════════ */
+.app {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  padding-top: var(--safe-top);
+  padding-bottom: var(--safe-bottom);
+}
+.header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 14px 20px;
+  background: var(--surface);
+  border-bottom: 1px solid var(--border);
+  flex-shrink: 0;
+  z-index: 50;
+}
+.logo {
+  font-size: 20px;
+  font-weight: 800;
+  color: var(--accent);
+  letter-spacing: -0.5px;
+}
+.logo b { color: var(--green); }
+.header-actions { display: flex; gap: 8px; }
+.icon-btn {
+  width: 36px; height: 36px;
+  border: none; border-radius: 10px;
+  background: var(--surface2);
+  color: var(--muted);
+  font-size: 18px;
+  cursor: pointer;
+  display: flex; align-items: center; justify-content: center;
+  transition: all 0.15s;
+}
+.icon-btn:active { transform: scale(0.92); }
+.icon-btn.active { color: var(--accent); background: var(--accent-dim); }
+
+/* ── View Container ─── */
+.views {
+  flex: 1;
+  overflow: hidden;
+  position: relative;
+}
+.view {
+  position: absolute;
+  inset: 0;
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+  padding: 16px;
+  padding-bottom: calc(var(--tab-h) + var(--safe-bottom) + 20px);
+  display: none;
+  opacity: 0;
+  transition: opacity 0.2s;
+}
+.view.active { display: block; opacity: 1; }
+
+/* ── Tab Bar ─── */
+.tab-bar {
+  display: flex;
+  background: var(--surface);
+  border-top: 1px solid var(--border);
+  padding-bottom: var(--safe-bottom);
+  flex-shrink: 0;
+  z-index: 50;
+}
+.tab {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 3px;
+  padding: 10px 4px 8px;
+  background: none;
+  border: none;
+  color: var(--muted);
+  font-size: 10px;
+  font-family: inherit;
+  font-weight: 500;
+  cursor: pointer;
+  transition: color 0.15s;
+}
+.tab svg { width: 22px; height: 22px; }
+.tab.active { color: var(--accent); }
+.tab:active { transform: scale(0.95); }
+
+/* ══════════════════════════════════════════
+   READER VIEW
+   ══════════════════════════════════════════ */
+.import-area {
+  background: var(--surface);
+  border: 2px dashed var(--border);
+  border-radius: var(--radius);
+  padding: 28px 20px;
+  text-align: center;
+  margin-bottom: 16px;
+}
+.import-area h2 {
+  font-size: 16px;
+  font-weight: 600;
+  margin-bottom: 12px;
+  color: var(--muted);
+}
+.import-btns {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+  justify-content: center;
+}
+.import-btn {
+  padding: 10px 16px;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: var(--surface2);
+  color: var(--text);
+  font-family: inherit;
+  font-size: 13px;
+  font-weight: 500;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  transition: all 0.15s;
+}
+.import-btn:active { transform: scale(0.96); background: var(--surface3); }
+.import-btn .em { font-size: 16px; }
+
+/* ── Text Display Area ─── */
+.reader-content {
+  font-size: 18px;
+  line-height: 1.75;
+  padding: 4px 0;
+  display: none;
+}
+.reader-content.has-text { display: block; }
+.reader-title {
+  font-size: 14px;
+  color: var(--muted);
+  margin-bottom: 12px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+.reader-title .close-text {
+  color: var(--muted);
+  background: none;
+  border: none;
+  font-size: 20px;
+  cursor: pointer;
+  padding: 0 4px;
+}
+.reader-stats-bar {
+  display: flex;
+  gap: 12px;
+  margin-bottom: 16px;
+  font-size: 12px;
+  color: var(--muted);
+}
+.reader-stats-bar span b { font-weight: 600; }
+.stat-new b { color: var(--blue); }
+.stat-saved b { color: var(--yellow); }
+.stat-known b { color: var(--green); }
+
+/* ── Word tokens ─── */
+.w {
+  cursor: pointer;
+  border-radius: 3px;
+  transition: background 0.12s;
+  padding: 1px 1px;
+}
+.w:active { transform: scale(0.97); }
+.w.w-new { color: var(--blue); background: var(--blue-dim); }
+.w.w-saved { color: var(--yellow); background: var(--yellow-dim); }
+.w.w-known { color: var(--text); opacity: 0.5; }
+.w.w-ignored { color: var(--text); opacity: 0.35; }
+.w.w-active {
+  background: var(--accent-dim) !important;
+  color: var(--accent) !important;
+  opacity: 1 !important;
+  outline: 2px solid var(--accent);
+  outline-offset: 1px;
+  border-radius: 4px;
+}
+
+/* ══════════════════════════════════════════
+   WORD PANEL (bottom sheet)
+   ══════════════════════════════════════════ */
+.word-panel-overlay {
+  position: fixed; inset: 0;
+  background: rgba(0,0,0,0.5);
+  z-index: 100;
+  display: none;
+  opacity: 0;
+  transition: opacity 0.2s;
+}
+.word-panel-overlay.show { display: block; opacity: 1; }
+.word-panel {
+  position: fixed;
+  bottom: 0; left: 0; right: 0;
+  background: var(--surface);
+  border-top-left-radius: 20px;
+  border-top-right-radius: 20px;
+  z-index: 101;
+  transform: translateY(100%);
+  transition: transform 0.3s cubic-bezier(0.32, 0.72, 0, 1);
+  max-height: 55vh;
+  overflow-y: auto;
+  padding-bottom: calc(var(--safe-bottom) + 12px);
+}
+.word-panel.show { transform: translateY(0); }
+.panel-handle {
+  width: 36px; height: 4px;
+  background: var(--border);
+  border-radius: 2px;
+  margin: 10px auto 0;
+}
+.panel-body { padding: 16px 20px; }
+.panel-word {
+  font-size: 26px;
+  font-weight: 800;
+  color: var(--accent);
+  margin-bottom: 2px;
+}
+.panel-translation {
+  font-size: 20px;
+  font-weight: 600;
+  color: var(--green);
+  min-height: 28px;
+  margin-bottom: 4px;
+}
+.panel-alts {
+  font-size: 13px;
+  color: var(--muted);
+  line-height: 1.6;
+  margin-bottom: 8px;
+}
+.panel-alts b { color: var(--accent); font-weight: 600; }
+.panel-ctx {
+  font-size: 12px;
+  color: var(--muted);
+  font-style: italic;
+  padding: 8px 10px;
+  background: var(--surface2);
+  border-radius: 8px;
+  margin-bottom: 12px;
+  max-height: 60px;
+  overflow: hidden;
+}
+.panel-sent {
+  font-size: 13px;
+  color: var(--blue);
+  padding: 8px 10px;
+  background: rgba(91,141,239,0.08);
+  border-radius: 8px;
+  margin-bottom: 12px;
+  display: none;
+}
+.panel-actions {
+  display: flex;
+  gap: 8px;
+}
+.panel-btn {
+  flex: 1;
+  padding: 14px;
+  border: none;
+  border-radius: 12px;
+  font-weight: 700;
+  font-size: 14px;
+  cursor: pointer;
+  font-family: inherit;
+  transition: all 0.12s;
+}
+.panel-btn:active { transform: scale(0.96); }
+.btn-save { background: var(--accent); color: #fff; }
+.btn-known { background: var(--green-dim); color: var(--green); border: 1px solid rgba(78,204,163,0.3); }
+.btn-ignore { background: var(--surface2); color: var(--muted); border: 1px solid var(--border); }
+
+/* ══════════════════════════════════════════
+   VOCAB LIST VIEW
+   ══════════════════════════════════════════ */
+.search-bar {
+  display: flex;
+  gap: 8px;
+  margin-bottom: 12px;
+}
+.search-input {
+  flex: 1;
+  padding: 12px 14px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  color: var(--text);
+  font-family: inherit;
+  font-size: 15px;
+  outline: none;
+}
+.search-input:focus { border-color: var(--accent); }
+.search-input::placeholder { color: var(--muted); }
+.filter-chips {
+  display: flex;
+  gap: 6px;
+  margin-bottom: 14px;
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+  padding-bottom: 4px;
+}
+.chip {
+  padding: 7px 14px;
+  border-radius: 20px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 500;
+  font-family: inherit;
+  white-space: nowrap;
+  cursor: pointer;
+  transition: all 0.12s;
+}
+.chip.active { background: var(--accent-dim); color: var(--accent); border-color: rgba(233,69,96,0.3); }
+
+.word-list { display: flex; flex-direction: column; gap: 6px; }
+.word-card {
+  display: flex;
+  align-items: center;
+  padding: 14px 16px;
+  background: var(--surface);
+  border-radius: var(--radius);
+  gap: 12px;
+  cursor: pointer;
+  transition: background 0.12s;
+}
+.word-card:active { background: var(--surface2); }
+.wc-word {
+  font-size: 17px;
+  font-weight: 700;
+  color: var(--text);
+  min-width: 0;
+}
+.wc-trans {
+  flex: 1;
+  font-size: 14px;
+  color: var(--muted);
+  text-align: right;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.wc-status {
+  width: 8px; height: 8px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+.wc-status.st-new { background: var(--blue); }
+.wc-status.st-saved, .wc-status.st-learning { background: var(--yellow); }
+.wc-status.st-known { background: var(--green); }
+.wc-status.st-ignored { background: var(--muted); }
+
+.empty-state {
+  text-align: center;
+  padding: 48px 20px;
+  color: var(--muted);
+}
+.empty-state .big { font-size: 40px; margin-bottom: 12px; }
+
+/* ══════════════════════════════════════════
+   STATS VIEW
+   ══════════════════════════════════════════ */
+.stats-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+  margin-bottom: 20px;
+}
+.stat-card {
+  background: var(--surface);
+  border-radius: var(--radius);
+  padding: 18px 16px;
+  text-align: center;
+}
+.stat-num {
+  font-size: 32px;
+  font-weight: 800;
+  font-family: 'JetBrains Mono', monospace;
+}
+.stat-num.c-accent { color: var(--accent); }
+.stat-num.c-blue { color: var(--blue); }
+.stat-num.c-yellow { color: var(--yellow); }
+.stat-num.c-green { color: var(--green); }
+.stat-label {
+  font-size: 12px;
+  color: var(--muted);
+  margin-top: 4px;
+}
+
+.section-title {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--muted);
+  text-transform: uppercase;
+  letter-spacing: 1px;
+  margin-bottom: 10px;
+}
+
+/* ══════════════════════════════════════════
+   SETTINGS VIEW
+   ══════════════════════════════════════════ */
+.settings-group {
+  background: var(--surface);
+  border-radius: var(--radius);
+  overflow: hidden;
+  margin-bottom: 16px;
+}
+.settings-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 14px 16px;
+  border-bottom: 1px solid var(--border);
+}
+.settings-row:last-child { border-bottom: none; }
+.settings-label {
+  font-size: 15px;
+  font-weight: 500;
+}
+.settings-desc {
+  font-size: 12px;
+  color: var(--muted);
+  margin-top: 2px;
+}
+.toggle {
+  position: relative;
+  width: 48px; height: 28px;
+  background: var(--surface3);
+  border-radius: 14px;
+  cursor: pointer;
+  transition: background 0.2s;
+  border: none;
+}
+.toggle::after {
+  content: '';
+  position: absolute;
+  width: 22px; height: 22px;
+  top: 3px; left: 3px;
+  background: white;
+  border-radius: 50%;
+  transition: transform 0.2s;
+}
+.toggle.on { background: var(--green); }
+.toggle.on::after { transform: translateX(20px); }
+.action-btn {
+  width: 100%;
+  padding: 14px;
+  border: none;
+  border-radius: var(--radius);
+  font-weight: 600;
+  font-size: 15px;
+  cursor: pointer;
+  font-family: inherit;
+  margin-bottom: 10px;
+  transition: all 0.12s;
+}
+.action-btn:active { transform: scale(0.98); }
+.action-btn.primary { background: var(--accent); color: #fff; }
+.action-btn.secondary { background: var(--surface); color: var(--text); }
+.action-btn.danger { background: rgba(233,69,96,0.15); color: var(--accent); }
+
+/* ══════════════════════════════════════════
+   MODALS
+   ══════════════════════════════════════════ */
+.modal-overlay {
+  position: fixed; inset: 0;
+  background: rgba(0,0,0,0.6);
+  z-index: 200;
+  display: none;
+  align-items: flex-end;
+  justify-content: center;
+}
+.modal-overlay.show { display: flex; }
+.modal {
+  background: var(--surface);
+  border-top-left-radius: 20px;
+  border-top-right-radius: 20px;
+  width: 100%;
+  max-height: 85vh;
+  overflow-y: auto;
+  padding: 20px;
+  padding-bottom: calc(var(--safe-bottom) + 20px);
+  transform: translateY(100%);
+  transition: transform 0.3s cubic-bezier(0.32, 0.72, 0, 1);
+}
+.modal-overlay.show .modal { transform: translateY(0); }
+.modal h2 {
+  font-size: 18px;
+  font-weight: 700;
+  margin-bottom: 16px;
+}
+.modal textarea {
+  width: 100%;
+  min-height: 180px;
+  padding: 14px;
+  background: var(--surface2);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  color: var(--text);
+  font-family: inherit;
+  font-size: 15px;
+  resize: vertical;
+  outline: none;
+  margin-bottom: 12px;
+}
+.modal textarea:focus { border-color: var(--accent); }
+.modal input[type="text"], .modal input[type="url"] {
+  width: 100%;
+  padding: 14px;
+  background: var(--surface2);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  color: var(--text);
+  font-family: inherit;
+  font-size: 15px;
+  outline: none;
+  margin-bottom: 12px;
+}
+.modal input:focus { border-color: var(--accent); }
+
+/* ══════════════════════════════════════════
+   WORD DETAIL MODAL
+   ══════════════════════════════════════════ */
+.detail-word {
+  font-size: 28px;
+  font-weight: 800;
+  color: var(--accent);
+}
+.detail-trans {
+  font-size: 18px;
+  color: var(--green);
+  margin-bottom: 12px;
+}
+.detail-meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-bottom: 14px;
+}
+.detail-badge {
+  padding: 4px 10px;
+  border-radius: 8px;
+  font-size: 12px;
+  font-weight: 600;
+}
+.detail-badge.b-status { background: var(--blue-dim); color: var(--blue); }
+.detail-badge.b-encounters { background: var(--yellow-dim); color: var(--yellow); }
+.detail-ctx-list {
+  margin-top: 12px;
+}
+.detail-ctx-item {
+  font-size: 13px;
+  color: var(--muted);
+  padding: 8px;
+  background: var(--surface2);
+  border-radius: 8px;
+  margin-bottom: 6px;
+  font-style: italic;
+}
+
+/* ══════════════════════════════════════════
+   UTILITY
+   ══════════════════════════════════════════ */
+.hidden { display: none !important; }
+input[type="file"] { display: none; }
+
+/* Loading spinner */
+.spinner {
+  display: inline-block;
+  width: 18px; height: 18px;
+  border: 2px solid var(--border);
+  border-top-color: var(--accent);
+  border-radius: 50%;
+  animation: spin 0.6s linear infinite;
+}
+@keyframes spin { to { transform: rotate(360deg); } }
+
+/* Toast */
+.toast {
+  position: fixed;
+  bottom: calc(var(--tab-h) + var(--safe-bottom) + 12px);
+  left: 50%; transform: translateX(-50%) translateY(80px);
+  background: var(--surface2);
+  color: var(--green);
+  border: 1px solid rgba(78,204,163,0.3);
+  padding: 10px 20px;
+  border-radius: 12px;
+  font-size: 14px;
+  font-weight: 600;
+  z-index: 300;
+  opacity: 0;
+  transition: all 0.3s;
+  pointer-events: none;
+}
+.toast.show { opacity: 1; transform: translateX(-50%) translateY(0); }
+
+/* Scrollbar */
+::-webkit-scrollbar { width: 4px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: var(--border); border-radius: 2px; }
+</style>
+</head>
+<body>
+
+<div class="app">
+  <!-- ══ Header ══ -->
+  <div class="header">
+    <div class="logo">Rus<b>Vault</b></div>
+    <div class="header-actions">
+      <button class="icon-btn" id="btnTheme" title="Toggle theme">◑</button>
+    </div>
+  </div>
+
+  <!-- ══ Views ══ -->
+  <div class="views">
+
+    <!-- ── READER ── -->
+    <div class="view active" id="viewReader">
+      <div id="importArea" class="import-area">
+        <h2>Import Russian text</h2>
+        <div class="import-btns">
+          <button class="import-btn" id="btnPaste"><span class="em">📄</span> Paste text</button>
+          <button class="import-btn" id="btnFile"><span class="em">📂</span> .txt file</button>
+          <button class="import-btn" id="btnYT"><span class="em">🎥</span> YouTube</button>
+        </div>
+        <input type="file" id="fileInput" accept=".txt">
+      </div>
+
+      <div id="readerContent" class="reader-content">
+        <div class="reader-title">
+          <span id="readerLabel">Text</span>
+          <button class="close-text" id="btnCloseText">×</button>
+        </div>
+        <div class="reader-stats-bar">
+          <span class="stat-new">🔵 New: <b id="countNew">0</b></span>
+          <span class="stat-saved">🟡 Saved: <b id="countSaved">0</b></span>
+          <span class="stat-known">⚪ Known: <b id="countKnown">0</b></span>
+        </div>
+        <div id="textBody"></div>
+      </div>
+    </div>
+
+    <!-- ── VOCAB ── -->
+    <div class="view" id="viewVocab">
+      <div class="search-bar">
+        <input class="search-input" id="vocabSearch" placeholder="Search words…" type="text" autocomplete="off" autocapitalize="off" spellcheck="false">
+      </div>
+      <div class="filter-chips" id="filterChips">
+        <button class="chip active" data-filter="all">All</button>
+        <button class="chip" data-filter="new">New</button>
+        <button class="chip" data-filter="saved">Saved</button>
+        <button class="chip" data-filter="learning">Learning</button>
+        <button class="chip" data-filter="known">Known</button>
+        <button class="chip" data-filter="ignored">Ignored</button>
+      </div>
+      <div class="word-list" id="wordList"></div>
+    </div>
+
+    <!-- ── STATS ── -->
+    <div class="view" id="viewStats">
+      <div class="stats-grid">
+        <div class="stat-card">
+          <div class="stat-num c-accent" id="statTotal">0</div>
+          <div class="stat-label">Total Words</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-num c-blue" id="statNew">0</div>
+          <div class="stat-label">New</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-num c-yellow" id="statLearning">0</div>
+          <div class="stat-label">Learning</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-num c-green" id="statKnown">0</div>
+          <div class="stat-label">Known</div>
+        </div>
+      </div>
+      <div class="section-title">Vocabulary Breakdown</div>
+      <div id="progressBar" style="height:12px;border-radius:6px;background:var(--surface);overflow:hidden;margin-bottom:24px;">
+        <div style="display:flex;height:100%;">
+          <div id="prgNew" style="background:var(--blue);transition:width 0.3s"></div>
+          <div id="prgLearning" style="background:var(--yellow);transition:width 0.3s"></div>
+          <div id="prgKnown" style="background:var(--green);transition:width 0.3s"></div>
+        </div>
+      </div>
+      <div class="section-title">Recent Activity</div>
+      <div id="activityList" style="display:flex;flex-direction:column;gap:6px;"></div>
+    </div>
+
+    <!-- ── SETTINGS ── -->
+    <div class="view" id="viewSettings">
+      <div class="section-title">Display</div>
+      <div class="settings-group">
+        <div class="settings-row">
+          <div>
+            <div class="settings-label">Dark Mode</div>
+            <div class="settings-desc">Switch between dark and light</div>
+          </div>
+          <button class="toggle on" id="toggleDark"></button>
+        </div>
+        <div class="settings-row">
+          <div>
+            <div class="settings-label">Font Size</div>
+            <div class="settings-desc">Reader text size</div>
+          </div>
+          <div style="display:flex;gap:8px;align-items:center;">
+            <button class="icon-btn" id="fontMinus" style="width:32px;height:32px;font-size:16px;">−</button>
+            <span id="fontSizeLabel" style="font-family:'JetBrains Mono';font-size:13px;min-width:32px;text-align:center;">18</span>
+            <button class="icon-btn" id="fontPlus" style="width:32px;height:32px;font-size:16px;">+</button>
+          </div>
+        </div>
+      </div>
+
+      <div class="section-title">Data</div>
+      <button class="action-btn secondary" id="btnExport">📤 Export Database (JSON)</button>
+      <button class="action-btn secondary" id="btnImport">📥 Import Database (JSON)</button>
+      <input type="file" id="importDbInput" accept=".json">
+      <button class="action-btn danger" id="btnClear">🗑 Clear All Data</button>
+
+      <div style="margin-top:24px;text-align:center;color:var(--muted);font-size:12px;">
+        RusVault PWA v1.0<br>
+        Offline-first · No cloud · Your data stays local
+      </div>
+    </div>
+  </div>
+
+  <!-- ══ Tab Bar ══ -->
+  <div class="tab-bar">
+    <button class="tab active" data-view="viewReader">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2z"/><path d="M22 3h-6a4 4 0 0 0-4 4v14a3 3 0 0 1 3-3h7z"/></svg>
+      Read
+    </button>
+    <button class="tab" data-view="viewVocab">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M12 2L2 7l10 5 10-5-10-5z"/><path d="M2 17l10 5 10-5"/><path d="M2 12l10 5 10-5"/></svg>
+      Vocab
+    </button>
+    <button class="tab" data-view="viewStats">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M18 20V10"/><path d="M12 20V4"/><path d="M6 20v-6"/></svg>
+      Stats
+    </button>
+    <button class="tab" data-view="viewSettings">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 1 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 1 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 1 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 1 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
+      Settings
+    </button>
+  </div>
+</div>
+
+<!-- ══ Word Panel (bottom sheet) ══ -->
+<div class="word-panel-overlay" id="panelOverlay"></div>
+<div class="word-panel" id="wordPanel">
+  <div class="panel-handle"></div>
+  <div class="panel-body">
+    <div class="panel-word" id="panelWord">—</div>
+    <div class="panel-translation" id="panelTrans">⏳</div>
+    <div class="panel-alts" id="panelAlts"></div>
+    <div class="panel-ctx" id="panelCtx"></div>
+    <div class="panel-sent" id="panelSent"></div>
+    <div class="panel-actions">
+      <button class="panel-btn btn-save" id="panelSave">💾 Save</button>
+      <button class="panel-btn btn-known" id="panelKnown">✓ Known</button>
+      <button class="panel-btn btn-ignore" id="panelIgnore">✗ Ignore</button>
+    </div>
+  </div>
+</div>
+
+<!-- ══ Paste Modal ══ -->
+<div class="modal-overlay" id="pasteModal">
+  <div class="modal">
+    <h2>📄 Paste Russian text</h2>
+    <textarea id="pasteInput" placeholder="Вставьте русский текст сюда…"></textarea>
+    <input type="text" id="pasteTitle" placeholder="Title (optional)">
+    <button class="action-btn primary" id="pasteSubmit">Open Text</button>
+    <button class="action-btn secondary" style="margin-top:8px" onclick="closeModal('pasteModal')">Cancel</button>
+  </div>
+</div>
+
+<!-- ══ YouTube Modal ══ -->
+<div class="modal-overlay" id="ytModal">
+  <div class="modal">
+    <h2>🎥 YouTube Transcript</h2>
+
+    <div style="margin-bottom:14px;">
+      <div style="font-size:14px;font-weight:600;margin-bottom:6px;">Option 1 — URL automatique</div>
+      <input type="url" id="ytUrl" placeholder="https://youtube.com/watch?v=…">
+      <button class="action-btn primary" id="ytSubmitUrl" style="margin-bottom:0;">🔍 Chercher les sous-titres</button>
+      <div id="ytStatus" style="font-size:12px;color:var(--muted);text-align:center;min-height:18px;margin-top:6px;"></div>
+    </div>
+
+    <div style="text-align:center;color:var(--muted);font-size:12px;margin:8px 0;padding:8px;background:var(--surface2);border-radius:8px;line-height:1.5;">
+      <b>Option 2 — Copier manuellement</b><br>
+      Sur YouTube → <b>⋯</b> sous la vidéo → <b>Afficher la transcription</b><br>
+      Sélectionne tout le texte et colle-le ici ↓
+    </div>
+    <textarea id="ytText" placeholder="Colle le transcript ici…" style="min-height:120px;"></textarea>
+    <button class="action-btn primary" id="ytSubmitText">📄 Importer le texte</button>
+    <button class="action-btn secondary" style="margin-top:8px" onclick="closeModal('ytModal')">Annuler</button>
+  </div>
+</div>
+
+<!-- ══ Word Detail Modal ══ -->
+<div class="modal-overlay" id="detailModal">
+  <div class="modal">
+    <div class="detail-word" id="detailWord">—</div>
+    <div class="detail-trans" id="detailTrans">—</div>
+    <div class="detail-meta" id="detailMeta"></div>
+    <div class="detail-ctx-list" id="detailContexts"></div>
+    <div style="display:flex;gap:8px;margin-top:16px;">
+      <button class="panel-btn btn-known" id="detailKnown" style="flex:1;">✓ Mark Known</button>
+      <button class="panel-btn btn-ignore" id="detailDelete" style="flex:1;background:var(--accent-dim);color:var(--accent);">🗑 Delete</button>
+    </div>
+    <button class="action-btn secondary" style="margin-top:8px" onclick="closeModal('detailModal')">Close</button>
+  </div>
+</div>
+
+<!-- ══ Toast ══ -->
+<div class="toast" id="toast"></div>
+
+<script>
+/* ══════════════════════════════════════════════════════════════
+   RUSVAULT PWA — Core Application Logic
+   IndexedDB + Offline-first + LingQ-style reader
+   ══════════════════════════════════════════════════════════════ */
+
+(function() {
+'use strict';
+
+// ── Constants ──
+const RU_WORD = /([а-яА-ЯёЁ]+)/g;
+const RU_TEST = /[а-яА-ЯёЁ]/;
+
+// Safari-compatible fetch timeout (AbortSignal.timeout not supported)
+function fetchWithTimeout(url, opts = {}, ms = 8000) {
+  const ctrl = new AbortController();
+  const timer = setTimeout(() => ctrl.abort(), ms);
+  return fetch(url, { ...opts, signal: ctrl.signal }).finally(() => clearTimeout(timer));
+}
+const DB_NAME = 'rusvault';
+const DB_VERSION = 1;
+
+// ── State ──
+let db = null;
+let wordCache = new Map();    // word (lowercase) → { id, status, encounters, translation }
+let currentWord = null;       // word being shown in panel
+let currentCtx = '';          // context sentence for current word
+let settings = {
+  darkMode: true,
+  fontSize: 18
+};
+
+// ══════════════════════════════════════════
+//  INDEXEDDB
+// ══════════════════════════════════════════
+
+function openDB() {
+  return new Promise((resolve, reject) => {
+    const req = indexedDB.open(DB_NAME, DB_VERSION);
+    req.onupgradeneeded = (e) => {
+      const db = e.target.result;
+
+      if (!db.objectStoreNames.contains('words')) {
+        const ws = db.createObjectStore('words', { keyPath: 'id', autoIncrement: true });
+        ws.createIndex('word', 'word', { unique: false });
+        ws.createIndex('wordLower', 'wordLower', { unique: false });
+        ws.createIndex('status', 'status', { unique: false });
+        ws.createIndex('createdAt', 'createdAt', { unique: false });
+      }
+
+      if (!db.objectStoreNames.contains('sources')) {
+        const ss = db.createObjectStore('sources', { keyPath: 'id', autoIncrement: true });
+        ss.createIndex('type', 'type', { unique: false });
+      }
+    };
+    req.onsuccess = (e) => { db = e.target.result; resolve(db); };
+    req.onerror = (e) => reject(e.target.error);
+  });
+}
+
+function tx(storeName, mode = 'readonly') {
+  return db.transaction(storeName, mode).objectStore(storeName);
+}
+
+function dbGet(store, key) {
+  return new Promise((res, rej) => {
+    const r = tx(store).get(key);
+    r.onsuccess = () => res(r.result);
+    r.onerror = () => rej(r.error);
+  });
+}
+
+function dbGetAll(store) {
+  return new Promise((res, rej) => {
+    const r = tx(store).getAll();
+    r.onsuccess = () => res(r.result);
+    r.onerror = () => rej(r.error);
+  });
+}
+
+function dbPut(store, data) {
+  return new Promise((res, rej) => {
+    const r = tx(store, 'readwrite').put(data);
+    r.onsuccess = () => res(r.result);
+    r.onerror = () => rej(r.error);
+  });
+}
+
+function dbAdd(store, data) {
+  return new Promise((res, rej) => {
+    const r = tx(store, 'readwrite').add(data);
+    r.onsuccess = () => res(r.result);
+    r.onerror = () => rej(r.error);
+  });
+}
+
+function dbDelete(store, key) {
+  return new Promise((res, rej) => {
+    const r = tx(store, 'readwrite').delete(key);
+    r.onsuccess = () => res();
+    r.onerror = () => rej(r.error);
+  });
+}
+
+function dbClear(store) {
+  return new Promise((res, rej) => {
+    const r = tx(store, 'readwrite').clear();
+    r.onsuccess = () => res();
+    r.onerror = () => rej(r.error);
+  });
+}
+
+function dbFindByIndex(store, indexName, value) {
+  return new Promise((res, rej) => {
+    const r = tx(store).index(indexName).getAll(value);
+    r.onsuccess = () => res(r.result);
+    r.onerror = () => rej(r.error);
+  });
+}
+
+// ── Load word cache (all words into memory for fast highlighting) ──
+async function loadWordCache() {
+  const all = await dbGetAll('words');
+  wordCache.clear();
+  for (const w of all) {
+    wordCache.set(w.wordLower, w);
+  }
+}
+
+// ══════════════════════════════════════════
+//  NAVIGATION
+// ══════════════════════════════════════════
+
+const tabs = document.querySelectorAll('.tab');
+const views = document.querySelectorAll('.view');
+
+tabs.forEach(tab => {
+  tab.addEventListener('click', () => {
+    const target = tab.dataset.view;
+    tabs.forEach(t => t.classList.remove('active'));
+    views.forEach(v => v.classList.remove('active'));
+    tab.classList.add('active');
+    document.getElementById(target).classList.add('active');
+
+    if (target === 'viewVocab') renderVocabList();
+    if (target === 'viewStats') renderStats();
+  });
+});
+
+// ══════════════════════════════════════════
+//  THEME & SETTINGS
+// ══════════════════════════════════════════
+
+function loadSettings() {
+  try {
+    const s = localStorage.getItem('rv_settings');
+    if (s) settings = { ...settings, ...JSON.parse(s) };
+  } catch {}
+  applySettings();
+}
+
+function saveSettings() {
+  localStorage.setItem('rv_settings', JSON.stringify(settings));
+}
+
+function applySettings() {
+  document.documentElement.setAttribute('data-theme', settings.darkMode ? 'dark' : 'light');
+  document.getElementById('toggleDark').classList.toggle('on', settings.darkMode);
+  document.getElementById('fontSizeLabel').textContent = settings.fontSize;
+}
+
+document.getElementById('btnTheme').addEventListener('click', () => {
+  settings.darkMode = !settings.darkMode;
+  applySettings(); saveSettings();
+});
+
+document.getElementById('toggleDark').addEventListener('click', () => {
+  settings.darkMode = !settings.darkMode;
+  applySettings(); saveSettings();
+});
+
+document.getElementById('fontMinus').addEventListener('click', () => {
+  if (settings.fontSize > 12) { settings.fontSize -= 2; applySettings(); saveSettings(); updateReaderFont(); }
+});
+document.getElementById('fontPlus').addEventListener('click', () => {
+  if (settings.fontSize < 30) { settings.fontSize += 2; applySettings(); saveSettings(); updateReaderFont(); }
+});
+
+function updateReaderFont() {
+  const el = document.getElementById('textBody');
+  if (el) el.style.fontSize = settings.fontSize + 'px';
+}
+
+// ══════════════════════════════════════════
+//  READER — Import & Display
+// ══════════════════════════════════════════
+
+// ── Paste ──
+document.getElementById('btnPaste').addEventListener('click', () => openModal('pasteModal'));
+document.getElementById('pasteSubmit').addEventListener('click', () => {
+  const text = document.getElementById('pasteInput').value.trim();
+  if (!text) return;
+  const title = document.getElementById('pasteTitle').value.trim() || 'Pasted text';
+  loadText(text, title);
+  closeModal('pasteModal');
+  document.getElementById('pasteInput').value = '';
+  document.getElementById('pasteTitle').value = '';
+});
+
+// ── File ──
+document.getElementById('btnFile').addEventListener('click', () => {
+  document.getElementById('fileInput').click();
+});
+document.getElementById('fileInput').addEventListener('change', (e) => {
+  const file = e.target.files[0];
+  if (!file) return;
+  const reader = new FileReader();
+  reader.onload = (ev) => {
+    loadText(ev.target.result, file.name);
+  };
+  reader.readAsText(file);
+  e.target.value = '';
+});
+
+// ── YouTube ──
+document.getElementById('btnYT').addEventListener('click', () => openModal('ytModal'));
+
+// Option 1: URL auto-fetch
+document.getElementById('ytSubmitUrl').addEventListener('click', async () => {
+  const url = document.getElementById('ytUrl').value.trim();
+  const status = document.getElementById('ytStatus');
+  if (!url) { showToast('Entre une URL YouTube'); return; }
+
+  const videoId = extractYTId(url);
+  if (!videoId) { showToast('❌ URL YouTube invalide'); return; }
+
+  status.innerHTML = '<span class="spinner"></span> Recherche des sous-titres…';
+
+  try {
+    const subs = await fetchYTSubtitles(videoId);
+    if (subs && subs.length > 20) {
+      loadText(subs, 'YouTube: ' + videoId);
+      closeModal('ytModal');
+      document.getElementById('ytUrl').value = '';
+      status.textContent = '';
+      showToast('✓ Sous-titres importés !');
+    } else {
+      status.innerHTML = '⚠️ Pas de sous-titres russes trouvés.<br>Essaie l\'option 2 (copier-coller).';
+    }
+  } catch (err) {
+    console.error('[RusVault YT]', err);
+    status.innerHTML = '⚠️ Impossible de récupérer.<br>Essaie l\'option 2 (copier-coller).';
+  }
+});
+
+// Option 2: Manual paste
+document.getElementById('ytSubmitText').addEventListener('click', () => {
+  const text = document.getElementById('ytText').value.trim();
+  if (!text) { showToast('Colle du texte d\'abord'); return; }
+  const url = document.getElementById('ytUrl').value.trim();
+  const cleaned = cleanTranscript(text);
+  loadText(cleaned, url ? 'YouTube: ' + url : 'YouTube transcript');
+  closeModal('ytModal');
+  document.getElementById('ytUrl').value = '';
+  document.getElementById('ytText').value = '';
+  document.getElementById('ytStatus').textContent = '';
+});
+
+function extractYTId(url) {
+  const m = url.match(/(?:v=|youtu\.be\/|\/shorts\/)([a-zA-Z0-9_-]{11})/);
+  return m ? m[1] : null;
+}
+
+async function fetchYTSubtitles(videoId) {
+  // Strategy 1: Fetch YouTube page via CORS proxies, extract captions
+  const corsProxies = [
+    (u) => `https://api.codetabs.com/v1/proxy?quest=${encodeURIComponent(u)}`,
+    (u) => `https://corsproxy.io/?${encodeURIComponent(u)}`,
+    (u) => `https://api.allorigins.win/raw?url=${encodeURIComponent(u)}`,
+  ];
+
+  const ytPageUrl = `https://www.youtube.com/watch?v=${videoId}`;
+
+  for (const makeProxy of corsProxies) {
+    try {
+      const proxyUrl = makeProxy(ytPageUrl);
+      const resp = await fetchWithTimeout(proxyUrl, {}, 8000);
+      if (!resp.ok) continue;
+      const html = await resp.text();
+
+      // Extract captionTracks from ytInitialPlayerResponse
+      const captionUrl = extractCaptionUrl(html, videoId);
+      if (!captionUrl) continue;
+
+      // Fetch the actual caption content (might also need proxy)
+      let subText = null;
+      try {
+        const subResp = await fetchWithTimeout(captionUrl, {}, 5000);
+        if (subResp.ok) subText = await subResp.text();
+      } catch {}
+
+      if (!subText) {
+        // Try via proxy
+        for (const makeP2 of corsProxies) {
+          try {
+            const pResp = await fetchWithTimeout(makeP2(captionUrl), {}, 5000);
+            if (pResp.ok) { subText = await pResp.text(); break; }
+          } catch { continue; }
+        }
+      }
+
+      if (subText) {
+        return parseSubtitles(subText);
+      }
+    } catch { continue; }
+  }
+
+  // Strategy 2: Invidious instances as fallback
+  const invInstances = [
+    'https://inv.nadeko.net',
+    'https://invidious.fdn.fr',
+    'https://vid.puffyan.us',
+    'https://invidious.nerdvpn.de',
+    'https://iv.ggtyler.dev'
+  ];
+
+  for (const base of invInstances) {
+    try {
+      const resp = await fetchWithTimeout(`${base}/api/v1/captions/${videoId}`, {}, 5000);
+      if (!resp.ok) continue;
+      const data = await resp.json();
+      const ruCap = data.captions?.find(c =>
+        c.language_code === 'ru' || c.label?.toLowerCase().includes('russian') || c.label?.toLowerCase().includes('русс')
+      );
+      if (!ruCap) continue;
+      const subResp = await fetchWithTimeout(`${base}${ruCap.url}&fmt=vtt`, {}, 5000);
+      if (!subResp.ok) continue;
+      return cleanVTT(await subResp.text());
+    } catch { continue; }
+  }
+
+  return null;
+}
+
+function extractCaptionUrl(html, videoId) {
+  try {
+    // Find captionTracks in the page source
+    const patterns = [
+      /"captionTracks"\s*:\s*(\[.*?\])/,
+      /captionTracks\\?":\s*(\[.*?\])/,
+    ];
+
+    for (const pat of patterns) {
+      const match = html.match(pat);
+      if (!match) continue;
+
+      let jsonStr = match[1];
+      // Unescape if needed
+      if (jsonStr.includes('\\u0026')) {
+        jsonStr = jsonStr.replace(/\\u0026/g, '&');
+      }
+      if (jsonStr.includes('\\"')) {
+        jsonStr = jsonStr.replace(/\\"/g, '"');
+      }
+
+      try {
+        const tracks = JSON.parse(jsonStr);
+        // Look for Russian
+        const ruTrack = tracks.find(t =>
+          t.languageCode === 'ru' ||
+          (t.name && (t.name.simpleText || '').toLowerCase().includes('русс')) ||
+          (t.vssId && t.vssId.includes('.ru'))
+        );
+        if (ruTrack && ruTrack.baseUrl) {
+          return ruTrack.baseUrl;
+        }
+        // Also try auto-generated Russian
+        const autoRu = tracks.find(t =>
+          t.vssId && (t.vssId.includes('a.ru') || t.vssId.includes('.ru'))
+        );
+        if (autoRu && autoRu.baseUrl) {
+          return autoRu.baseUrl;
+        }
+      } catch {}
+    }
+
+    // Alternative: find timedtext URL directly
+    const ttMatch = html.match(/https?:\/\/www\.youtube\.com\/api\/timedtext[^"\\]*/g);
+    if (ttMatch) {
+      for (const ttUrl of ttMatch) {
+        const cleaned = ttUrl.replace(/\\u0026/g, '&');
+        if (cleaned.includes('lang=ru') || cleaned.includes('ru')) {
+          return cleaned;
+        }
+      }
+    }
+  } catch (err) {
+    console.error('[RusVault] Caption extraction error:', err);
+  }
+  return null;
+}
+
+function parseSubtitles(text) {
+  // Handle XML format (YouTube timedtext)
+  if (text.trim().startsWith('<?xml') || text.trim().startsWith('<transcript')) {
+    const matches = text.match(/<text[^>]*>([\s\S]*?)<\/text>/g);
+    if (matches) {
+      return matches
+        .map(m => m.replace(/<[^>]+>/g, '').replace(/&amp;/g, '&').replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/&#39;/g, "'").replace(/&quot;/g, '"').trim())
+        .filter(t => t.length > 0)
+        .join(' ')
+        .replace(/\s{2,}/g, ' ');
+    }
+  }
+
+  // Handle JSON format
+  if (text.trim().startsWith('{') || text.trim().startsWith('[')) {
+    try {
+      const data = JSON.parse(text);
+      const events = data.events || [];
+      return events
+        .filter(e => e.segs)
+        .map(e => e.segs.map(s => s.utf8 || '').join(''))
+        .join(' ')
+        .replace(/\s{2,}/g, ' ')
+        .trim();
+    } catch {}
+  }
+
+  // Handle VTT format
+  if (text.includes('WEBVTT')) {
+    return cleanVTT(text);
+  }
+
+  // Fallback: just clean the text
+  return text.replace(/<[^>]+>/g, '').replace(/\s{2,}/g, ' ').trim();
+}
+
+function cleanVTT(vtt) {
+  return vtt
+    .replace(/WEBVTT[\s\S]*?\n\n/, '')
+    .replace(/\d{2}:\d{2}[\d:.→\-\>]+/g, '')
+    .replace(/<[^>]+>/g, '')
+    .replace(/\n{2,}/g, '\n')
+    .trim()
+    .split('\n')
+    .filter(l => l.trim() && l.trim().length > 1)
+    .join(' ')
+    .replace(/\s{2,}/g, ' ');
+}
+
+function cleanTranscript(text) {
+  return text
+    .replace(/\d{1,2}:\d{2}(:\d{2})?/g, '')
+    .replace(/\[.*?\]/g, '')
+    .replace(/\n{2,}/g, '\n')
+    .trim()
+    .split('\n')
+    .filter(l => l.trim().length > 0)
+    .join(' ')
+    .replace(/\s{2,}/g, ' ');
+}
+
+// ── Load text into reader ──
+function loadText(text, title) {
+  document.getElementById('importArea').style.display = 'none';
+  const rc = document.getElementById('readerContent');
+  rc.classList.add('has-text');
+  document.getElementById('readerLabel').textContent = title || 'Text';
+
+  renderText(text);
+  updateReaderFont();
+}
+
+document.getElementById('btnCloseText').addEventListener('click', () => {
+  document.getElementById('importArea').style.display = '';
+  document.getElementById('readerContent').classList.remove('has-text');
+  document.getElementById('textBody').innerHTML = '';
+});
+
+// ── Render text with word coloring ──
+function renderText(text) {
+  const body = document.getElementById('textBody');
+  body.innerHTML = '';
+  body.style.fontSize = settings.fontSize + 'px';
+
+  // Split into paragraphs
+  const paragraphs = text.split(/\n+/);
+  let newCount = 0, savedCount = 0, knownCount = 0;
+
+  for (const para of paragraphs) {
+    if (!para.trim()) continue;
+    const p = document.createElement('p');
+    p.style.marginBottom = '14px';
+
+    const parts = para.split(RU_WORD);
+    for (const part of parts) {
+      if (!part) continue;
+
+      if (/^[а-яА-ЯёЁ]+$/.test(part)) {
+        const lower = part.toLowerCase();
+        const span = document.createElement('span');
+        span.className = 'w';
+        span.textContent = part;
+        span.dataset.w = lower;
+
+        const cached = wordCache.get(lower);
+        if (cached) {
+          if (cached.status === 'known') {
+            span.classList.add('w-known');
+            knownCount++;
+          } else if (cached.status === 'ignored') {
+            span.classList.add('w-ignored');
+          } else {
+            span.classList.add('w-saved');
+            savedCount++;
+          }
+        } else {
+          span.classList.add('w-new');
+          newCount++;
+        }
+
+        span.addEventListener('click', onWordTap);
+        p.appendChild(span);
+      } else {
+        p.appendChild(document.createTextNode(part));
+      }
+    }
+    body.appendChild(p);
+  }
+
+  document.getElementById('countNew').textContent = newCount;
+  document.getElementById('countSaved').textContent = savedCount;
+  document.getElementById('countKnown').textContent = knownCount;
+}
+
+// ── Re-color all words (after a status change) ──
+function recolorWords() {
+  let newC = 0, savedC = 0, knownC = 0;
+  document.querySelectorAll('#textBody .w').forEach(span => {
+    const lower = span.dataset.w;
+    const cached = wordCache.get(lower);
+    span.className = 'w';
+    if (cached) {
+      if (cached.status === 'known') { span.classList.add('w-known'); knownC++; }
+      else if (cached.status === 'ignored') { span.classList.add('w-ignored'); }
+      else { span.classList.add('w-saved'); savedC++; }
+    } else {
+      span.classList.add('w-new');
+      newC++;
+    }
+  });
+  document.getElementById('countNew').textContent = newC;
+  document.getElementById('countSaved').textContent = savedC;
+  document.getElementById('countKnown').textContent = knownC;
+}
+
+// ══════════════════════════════════════════
+//  WORD TAP → Panel
+// ══════════════════════════════════════════
+
+function onWordTap(e) {
+  e.preventDefault();
+  e.stopPropagation();
+  const span = e.currentTarget;
+  const word = span.dataset.w;
+
+  // Highlight
+  document.querySelectorAll('.w.w-active').forEach(el => el.classList.remove('w-active'));
+  span.classList.add('w-active');
+
+  // Get context sentence
+  let ctx = '';
+  const par = span.closest('p');
+  if (par) {
+    ctx = par.textContent.trim();
+    if (ctx.length > 300) ctx = ctx.substring(0, 300) + '…';
+  }
+
+  currentWord = word;
+  currentCtx = ctx;
+
+  showWordPanel(word, ctx);
+}
+
+function showWordPanel(word, ctx) {
+  const panel = document.getElementById('wordPanel');
+  const overlay = document.getElementById('panelOverlay');
+
+  document.getElementById('panelWord').textContent = word;
+  document.getElementById('panelTrans').innerHTML = '<span class="spinner"></span>';
+  document.getElementById('panelAlts').innerHTML = '';
+  document.getElementById('panelCtx').textContent = ctx ? `« ${ctx} »` : '';
+  document.getElementById('panelSent').style.display = 'none';
+  document.getElementById('panelSent').textContent = '';
+
+  overlay.classList.add('show');
+  panel.classList.add('show');
+
+  // Check if word already in DB
+  const cached = wordCache.get(word);
+  if (cached) {
+    document.getElementById('panelSave').textContent = '📝 Update';
+    if (cached.translation) {
+      document.getElementById('panelTrans').textContent = cached.translation;
+    }
+  } else {
+    document.getElementById('panelSave').textContent = '💾 Save';
+  }
+
+  // Fetch translation (offline: use cached; online: try Google Translate)
+  fetchTranslation(word, ctx);
+}
+
+function hideWordPanel() {
+  document.getElementById('wordPanel').classList.remove('show');
+  document.getElementById('panelOverlay').classList.remove('show');
+  document.querySelectorAll('.w.w-active').forEach(el => el.classList.remove('w-active'));
+  currentWord = null;
+}
+
+document.getElementById('panelOverlay').addEventListener('click', hideWordPanel);
+
+// ── Translation ──
+async function fetchTranslation(word, sentence) {
+  try {
+    const params = new URLSearchParams({ client: 'gtx', sl: 'ru', tl: 'fr', dt: 't', q: word });
+    params.append('dt', 'bd');
+    const resp = await fetchWithTimeout(`https://translate.googleapis.com/translate_a/single?${params}`, {}, 5000);
+    const data = await resp.json();
+
+    // Main translation
+    let translation = '';
+    if (data?.[0]) {
+      translation = data[0].map(p => p?.[0] || '').join('');
+    }
+    document.getElementById('panelTrans').textContent = translation || '—';
+
+    // Alternatives
+    let altsHtml = '';
+    if (data?.[1]) {
+      for (const entry of data[1]) {
+        if (entry[0]) altsHtml += `<b>${entry[0]}</b> `;
+        if (entry[1]) altsHtml += entry[1].slice(0, 4).join(', ');
+        altsHtml += '<br>';
+      }
+      document.getElementById('panelAlts').innerHTML = altsHtml;
+    }
+
+    // Sentence translation
+    if (sentence && sentence.length > word.length + 5) {
+      const sp = new URLSearchParams({ client: 'gtx', sl: 'ru', tl: 'fr', dt: 't', q: sentence.substring(0, 300) });
+      const sr = await fetchWithTimeout(`https://translate.googleapis.com/translate_a/single?${sp}`, {}, 5000);
+      const sd = await sr.json();
+      if (sd?.[0]) {
+        const sentTrans = sd[0].map(p => p?.[0] || '').join('');
+        if (sentTrans) {
+          document.getElementById('panelSent').textContent = '📖 ' + sentTrans;
+          document.getElementById('panelSent').style.display = 'block';
+        }
+      }
+    }
+
+    // Store translation for saving
+    document.getElementById('panelTrans').dataset.value = translation;
+  } catch (err) {
+    // Offline — try cached
+    const cached = wordCache.get(word);
+    if (cached?.translation) {
+      document.getElementById('panelTrans').textContent = cached.translation;
+      document.getElementById('panelTrans').dataset.value = cached.translation;
+    } else {
+      document.getElementById('panelTrans').textContent = '(offline — no translation)';
+      document.getElementById('panelTrans').dataset.value = '';
+    }
+  }
+}
+
+// ── Save / Known / Ignore ──
+document.getElementById('panelSave').addEventListener('click', () => saveWord('new'));
+document.getElementById('panelKnown').addEventListener('click', () => saveWord('known'));
+document.getElementById('panelIgnore').addEventListener('click', () => saveWord('ignored'));
+
+async function saveWord(status) {
+  if (!currentWord) return;
+  const word = currentWord;
+  const translation = document.getElementById('panelTrans').dataset.value || '';
+  const now = new Date().toISOString();
+
+  const existing = wordCache.get(word);
+
+  if (existing) {
+    // Update
+    existing.status = status;
+    existing.encounters = (existing.encounters || 1) + 1;
+    existing.lastSeen = now;
+    if (translation && !existing.translation) existing.translation = translation;
+    if (currentCtx && !existing.contexts?.includes(currentCtx)) {
+      existing.contexts = existing.contexts || [];
+      if (existing.contexts.length < 10) existing.contexts.push(currentCtx);
+    }
+    await dbPut('words', existing);
+    wordCache.set(word, existing);
+  } else {
+    // New
+    const entry = {
+      word: word,
+      wordLower: word,
+      translation: translation,
+      status: status,
+      encounters: 1,
+      contexts: currentCtx ? [currentCtx] : [],
+      createdAt: now,
+      lastSeen: now
+    };
+    const id = await dbAdd('words', entry);
+    entry.id = id;
+    wordCache.set(word, entry);
+  }
+
+  const label = status === 'known' ? '✓ Known' : status === 'ignored' ? '✗ Ignored' : '✓ Saved';
+  showToast(`${label}: ${word}`);
+  hideWordPanel();
+  recolorWords();
+}
+
+// ══════════════════════════════════════════
+//  VOCAB LIST
+// ══════════════════════════════════════════
+
+let vocabFilter = 'all';
+let vocabQuery = '';
+
+document.querySelectorAll('#filterChips .chip').forEach(chip => {
+  chip.addEventListener('click', () => {
+    document.querySelectorAll('#filterChips .chip').forEach(c => c.classList.remove('active'));
+    chip.classList.add('active');
+    vocabFilter = chip.dataset.filter;
+    renderVocabList();
+  });
+});
+
+document.getElementById('vocabSearch').addEventListener('input', (e) => {
+  vocabQuery = e.target.value.toLowerCase().trim();
+  renderVocabList();
+});
+
+async function renderVocabList() {
+  const list = document.getElementById('wordList');
+  let words = await dbGetAll('words');
+
+  // Filter
+  if (vocabFilter !== 'all') {
+    words = words.filter(w => w.status === vocabFilter);
+  }
+  if (vocabQuery) {
+    words = words.filter(w =>
+      w.word.includes(vocabQuery) ||
+      (w.translation && w.translation.toLowerCase().includes(vocabQuery))
+    );
+  }
+
+  // Sort by newest first
+  words.sort((a, b) => (b.createdAt || '').localeCompare(a.createdAt || ''));
+
+  if (words.length === 0) {
+    list.innerHTML = '<div class="empty-state"><div class="big">📚</div>No words yet.<br>Start reading to build your vocabulary!</div>';
+    return;
+  }
+
+  list.innerHTML = words.map(w => `
+    <div class="word-card" data-id="${w.id}">
+      <div class="wc-status st-${w.status || 'new'}"></div>
+      <div class="wc-word">${escHtml(w.word)}</div>
+      <div class="wc-trans">${escHtml(w.translation || '')}</div>
+    </div>
+  `).join('');
+
+  list.querySelectorAll('.word-card').forEach(card => {
+    card.addEventListener('click', () => showWordDetail(+card.dataset.id));
+  });
+}
+
+async function showWordDetail(id) {
+  const w = await dbGet('words', id);
+  if (!w) return;
+
+  document.getElementById('detailWord').textContent = w.word;
+  document.getElementById('detailTrans').textContent = w.translation || '—';
+
+  const statusLabel = { new: 'New', saved: 'Saved', learning: 'Learning', known: 'Known', ignored: 'Ignored' };
+  document.getElementById('detailMeta').innerHTML = `
+    <span class="detail-badge b-status">${statusLabel[w.status] || w.status}</span>
+    <span class="detail-badge b-encounters">${w.encounters || 1} encounter${(w.encounters||1) > 1 ? 's' : ''}</span>
+  `;
+
+  const ctxHtml = (w.contexts || []).map(c => `<div class="detail-ctx-item">« ${escHtml(c)} »</div>`).join('');
+  document.getElementById('detailContexts').innerHTML = ctxHtml || '<div style="color:var(--muted);font-size:13px;">No context saved</div>';
+
+  document.getElementById('detailKnown').onclick = async () => {
+    w.status = 'known';
+    await dbPut('words', w);
+    wordCache.set(w.wordLower, w);
+    recolorWords();
+    closeModal('detailModal');
+    renderVocabList();
+    showToast('✓ Marked as known');
+  };
+
+  document.getElementById('detailDelete').onclick = async () => {
+    if (confirm('Delete "' + w.word + '" from vocabulary?')) {
+      await dbDelete('words', w.id);
+      wordCache.delete(w.wordLower);
+      recolorWords();
+      closeModal('detailModal');
+      renderVocabList();
+      showToast('🗑 Deleted');
+    }
+  };
+
+  openModal('detailModal');
+}
+
+// ══════════════════════════════════════════
+//  STATS
+// ══════════════════════════════════════════
+
+async function renderStats() {
+  const words = await dbGetAll('words');
+  const total = words.length;
+  const newW = words.filter(w => w.status === 'new').length;
+  const learning = words.filter(w => w.status === 'saved' || w.status === 'learning').length;
+  const known = words.filter(w => w.status === 'known').length;
+
+  document.getElementById('statTotal').textContent = total;
+  document.getElementById('statNew').textContent = newW;
+  document.getElementById('statLearning').textContent = learning;
+  document.getElementById('statKnown').textContent = known;
+
+  // Progress bar
+  if (total > 0) {
+    document.getElementById('prgNew').style.width = (newW / total * 100) + '%';
+    document.getElementById('prgLearning').style.width = (learning / total * 100) + '%';
+    document.getElementById('prgKnown').style.width = (known / total * 100) + '%';
+  }
+
+  // Activity: group by date
+  const byDate = {};
+  for (const w of words) {
+    const d = (w.createdAt || '').substring(0, 10);
+    if (d) byDate[d] = (byDate[d] || 0) + 1;
+  }
+  const dates = Object.entries(byDate).sort((a, b) => b[0].localeCompare(a[0])).slice(0, 14);
+  const actEl = document.getElementById('activityList');
+
+  if (dates.length === 0) {
+    actEl.innerHTML = '<div style="color:var(--muted);text-align:center;padding:20px;">No activity yet</div>';
+    return;
+  }
+
+  actEl.innerHTML = dates.map(([date, count]) => `
+    <div style="display:flex;align-items:center;gap:10px;padding:8px 12px;background:var(--surface);border-radius:10px;">
+      <span style="font-family:'JetBrains Mono';font-size:12px;color:var(--muted);min-width:80px;">${date}</span>
+      <div style="flex:1;height:6px;background:var(--surface2);border-radius:3px;overflow:hidden;">
+        <div style="width:${Math.min(count * 5, 100)}%;height:100%;background:var(--accent);border-radius:3px;"></div>
+      </div>
+      <span style="font-family:'JetBrains Mono';font-size:13px;font-weight:600;color:var(--accent);min-width:24px;text-align:right;">+${count}</span>
+    </div>
+  `).join('');
+}
+
+// ══════════════════════════════════════════
+//  EXPORT / IMPORT
+// ══════════════════════════════════════════
+
+document.getElementById('btnExport').addEventListener('click', async () => {
+  const words = await dbGetAll('words');
+  const data = { version: 1, exportedAt: new Date().toISOString(), words };
+  const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = `rusvault-export-${new Date().toISOString().substring(0, 10)}.json`;
+  a.click();
+  URL.revokeObjectURL(url);
+  showToast('📤 Exported!');
+});
+
+document.getElementById('btnImport').addEventListener('click', () => {
+  document.getElementById('importDbInput').click();
+});
+
+document.getElementById('importDbInput').addEventListener('change', async (e) => {
+  const file = e.target.files[0];
+  if (!file) return;
+
+  try {
+    const text = await file.text();
+    const data = JSON.parse(text);
+    const words = data.words || data;
+
+    if (!Array.isArray(words)) {
+      showToast('❌ Invalid file format');
+      return;
+    }
+
+    let imported = 0;
+    for (const w of words) {
+      const lower = (w.wordLower || w.word || '').toLowerCase();
+      if (!lower) continue;
+
+      const existing = wordCache.get(lower);
+      if (existing) {
+        // Merge: keep higher encounter count, merge contexts
+        existing.encounters = Math.max(existing.encounters || 1, w.encounters || 1);
+        if (w.translation && !existing.translation) existing.translation = w.translation;
+        if (w.contexts) {
+          existing.contexts = existing.contexts || [];
+          for (const c of w.contexts) {
+            if (!existing.contexts.includes(c) && existing.contexts.length < 10) {
+              existing.contexts.push(c);
+            }
+          }
+        }
+        await dbPut('words', existing);
+      } else {
+        const entry = {
+          word: w.word || lower,
+          wordLower: lower,
+          translation: w.translation || '',
+          status: w.status || 'new',
+          encounters: w.encounters || 1,
+          contexts: w.contexts || [],
+          createdAt: w.createdAt || new Date().toISOString(),
+          lastSeen: w.lastSeen || new Date().toISOString()
+        };
+        await dbAdd('words', entry);
+        imported++;
+      }
+    }
+
+    await loadWordCache();
+    showToast(`📥 Imported ${imported} new words!`);
+    recolorWords();
+  } catch (err) {
+    showToast('❌ Import error: ' + err.message);
+  }
+  e.target.value = '';
+});
+
+document.getElementById('btnClear').addEventListener('click', async () => {
+  if (!confirm('Delete ALL vocabulary data? This cannot be undone.')) return;
+  if (!confirm('Are you really sure?')) return;
+  await dbClear('words');
+  await dbClear('sources');
+  wordCache.clear();
+  recolorWords();
+  showToast('🗑 All data cleared');
+});
+
+// ══════════════════════════════════════════
+//  MODALS & TOAST
+// ══════════════════════════════════════════
+
+function openModal(id) {
+  const el = document.getElementById(id);
+  el.classList.add('show');
+  el.addEventListener('click', (e) => {
+    if (e.target === el) closeModal(id);
+  }, { once: true });
+}
+
+// make closeModal global for inline onclick
+window.closeModal = function(id) {
+  document.getElementById(id).classList.remove('show');
+};
+
+let toastTimer;
+function showToast(msg) {
+  const t = document.getElementById('toast');
+  t.textContent = msg;
+  t.classList.add('show');
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(() => t.classList.remove('show'), 2200);
+}
+
+// ══════════════════════════════════════════
+//  UTILITY
+// ══════════════════════════════════════════
+
+function escHtml(s) {
+  const d = document.createElement('div');
+  d.textContent = s;
+  return d.innerHTML;
+}
+
+// ══════════════════════════════════════════
+//  INIT
+// ══════════════════════════════════════════
+
+async function init() {
+  loadSettings();
+  await openDB();
+  await loadWordCache();
+  console.log(`[RusVault] Ready. ${wordCache.size} words cached.`);
+}
+
+init().catch(err => console.error('[RusVault] Init error:', err));
+
+// Service Worker registration
+if ('serviceWorker' in navigator) {
+  navigator.serviceWorker.register('sw.js').catch(() => {});
+}
+
+})();
+</script>
+</body>
 </html>
