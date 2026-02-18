@@ -1526,53 +1526,130 @@ document.getElementById('panelOverlay').addEventListener('click', hideWordPanel)
 // ── Translation ──
 async function fetchTranslation(word, sentence) {
   try {
-    const params = new URLSearchParams({ client: 'gtx', sl: 'ru', tl: 'fr', dt: 't', q: word });
-    params.append('dt', 'bd');
-    const resp = await fetchWithTimeout(`https://translate.googleapis.com/translate_a/single?${params}`, {}, 5000);
-    const data = await resp.json();
+    var translation = '';
+    var altsHtml = '';
 
-    // Main translation
-    let translation = '';
-    if (data?.[0]) {
-      translation = data[0].map(p => p?.[0] || '').join('');
+    // Strategy 1: Lingva Translate (Google Translate proxy — no rate limit)
+    var lingvaInstances = [
+      'https://lingva.ml',
+      'https://lingva.thedaviddelta.com',
+      'https://translate.plausibility.cloud'
+    ];
+
+    for (var li = 0; li < lingvaInstances.length; li++) {
+      try {
+        var lUrl = lingvaInstances[li] + '/api/v1/ru/fr/' + encodeURIComponent(word);
+        var lr = await fetchWithTimeout(lUrl, {}, 4000);
+        if (lr.ok) {
+          var ld = await lr.json();
+          if (ld.translation) {
+            translation = ld.translation;
+            break;
+          }
+        }
+      } catch (e) { /* try next */ }
     }
-    document.getElementById('panelTrans').textContent = translation || '—';
 
-    // Alternatives
-    let altsHtml = '';
-    if (data?.[1]) {
-      for (const entry of data[1]) {
-        if (entry[0]) altsHtml += `<b>${entry[0]}</b> `;
-        if (entry[1]) altsHtml += entry[1].slice(0, 4).join(', ');
-        altsHtml += '<br>';
-      }
+    // Strategy 2: MyMemory (free, 5000 words/day)
+    if (!translation) {
+      try {
+        var mmUrl = 'https://api.mymemory.translated.net/get?q=' + encodeURIComponent(word) + '&langpair=ru|fr';
+        var mr = await fetchWithTimeout(mmUrl, {}, 4000);
+        if (mr.ok) {
+          var md = await mr.json();
+          if (md.responseData && md.responseData.translatedText) {
+            translation = md.responseData.translatedText;
+          }
+          // Alternatives from matches
+          if (md.matches && md.matches.length > 1) {
+            var seen = {};
+            for (var mi = 0; mi < Math.min(md.matches.length, 5); mi++) {
+              var mt = md.matches[mi].translation;
+              if (mt && !seen[mt] && mt !== translation) {
+                seen[mt] = true;
+                altsHtml += mt + ', ';
+              }
+            }
+            if (altsHtml) altsHtml = altsHtml.slice(0, -2);
+          }
+        }
+      } catch (e) { /* continue */ }
+    }
+
+    // Strategy 3: Google Translate direct (last resort)
+    if (!translation) {
+      try {
+        var gp = 'client=gtx&sl=ru&tl=fr&dt=t&dt=bd&q=' + encodeURIComponent(word);
+        var gr = await fetchWithTimeout('https://translate.googleapis.com/translate_a/single?' + gp, {}, 4000);
+        var gd = await gr.json();
+        if (gd && gd[0]) {
+          for (var gi = 0; gi < gd[0].length; gi++) {
+            if (gd[0][gi] && gd[0][gi][0]) translation += gd[0][gi][0];
+          }
+        }
+        if (gd && gd[1]) {
+          altsHtml = '';
+          for (var ai = 0; ai < gd[1].length; ai++) {
+            var entry = gd[1][ai];
+            if (entry[0]) altsHtml += '<b>' + entry[0] + '</b> ';
+            if (entry[1]) altsHtml += entry[1].slice(0, 4).join(', ');
+            altsHtml += '<br>';
+          }
+        }
+      } catch (e) { /* give up */ }
+    }
+
+    document.getElementById('panelTrans').textContent = translation || '—';
+    document.getElementById('panelTrans').dataset.value = translation || '';
+    if (altsHtml) {
       document.getElementById('panelAlts').innerHTML = altsHtml;
     }
 
-    // Sentence translation
+    // Sentence translation (MyMemory — more reliable than Google direct)
     if (sentence && sentence.length > word.length + 5) {
-      const sp = new URLSearchParams({ client: 'gtx', sl: 'ru', tl: 'fr', dt: 't', q: sentence.substring(0, 300) });
-      const sr = await fetchWithTimeout(`https://translate.googleapis.com/translate_a/single?${sp}`, {}, 5000);
-      const sd = await sr.json();
-      if (sd?.[0]) {
-        const sentTrans = sd[0].map(p => p?.[0] || '').join('');
+      try {
+        var sq = sentence.substring(0, 300);
+        var sentTrans = '';
+
+        // Try Lingva first for sentence
+        for (var si = 0; si < lingvaInstances.length; si++) {
+          try {
+            var slUrl = lingvaInstances[si] + '/api/v1/ru/fr/' + encodeURIComponent(sq);
+            var slr = await fetchWithTimeout(slUrl, {}, 4000);
+            if (slr.ok) {
+              var sld = await slr.json();
+              if (sld.translation) { sentTrans = sld.translation; break; }
+            }
+          } catch (e) { /* next */ }
+        }
+
+        // Fallback to MyMemory for sentence
+        if (!sentTrans) {
+          var smUrl = 'https://api.mymemory.translated.net/get?q=' + encodeURIComponent(sq) + '&langpair=ru|fr';
+          var smr = await fetchWithTimeout(smUrl, {}, 4000);
+          if (smr.ok) {
+            var smd = await smr.json();
+            if (smd.responseData && smd.responseData.translatedText) {
+              sentTrans = smd.responseData.translatedText;
+            }
+          }
+        }
+
         if (sentTrans) {
           document.getElementById('panelSent').textContent = '📖 ' + sentTrans;
           document.getElementById('panelSent').style.display = 'block';
         }
-      }
+      } catch (e) { /* no sentence translation */ }
     }
 
-    // Store translation for saving
-    document.getElementById('panelTrans').dataset.value = translation;
   } catch (err) {
     // Offline — try cached
-    const cached = wordCache.get(word);
-    if (cached?.translation) {
+    var cached = wordCache.get(word);
+    if (cached && cached.translation) {
       document.getElementById('panelTrans').textContent = cached.translation;
       document.getElementById('panelTrans').dataset.value = cached.translation;
     } else {
-      document.getElementById('panelTrans').textContent = '(offline — no translation)';
+      document.getElementById('panelTrans').textContent = '(hors ligne)';
       document.getElementById('panelTrans').dataset.value = '';
     }
   }
