@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>YT Debug v4</title>
+<title>YT Debug v6</title>
 <style>
 * { margin:0; padding:0; box-sizing:border-box; }
 body { font-family: -apple-system, sans-serif; background:#0a0a14; color:#e8e8f0; padding:20px; }
@@ -11,144 +11,112 @@ h1 { font-size:18px; color:#e94560; margin-bottom:16px; }
 input { width:100%; padding:12px; background:#1a1a2e; border:1px solid #2a2a3e; border-radius:10px; color:#e8e8f0; font-size:15px; margin-bottom:12px; outline:none; }
 button { padding:12px 20px; background:#e94560; color:#fff; border:none; border-radius:10px; font-size:15px; font-weight:600; cursor:pointer; width:100%; margin-bottom:16px; }
 .log { background:#12121f; border-radius:10px; padding:14px; font-family:'Courier New',monospace; font-size:12px; line-height:1.8; max-height:70vh; overflow-y:auto; white-space:pre-wrap; word-break:break-all; }
-.ok { color:#4ecca3; }
-.err { color:#e94560; }
-.warn { color:#f0c040; }
-.info { color:#5b8def; }
+.ok { color:#4ecca3; } .err { color:#e94560; } .warn { color:#f0c040; } .info { color:#5b8def; }
 </style>
 </head>
 <body>
-
-<h1>🔍 YT Debug v4</h1>
+<h1>🔍 YT Debug v6 — test all formats</h1>
 <input type="url" id="url" placeholder="https://youtube.com/watch?v=…">
 <button onclick="runTest()">Tester</button>
 <div class="log" id="log">En attente…</div>
-
 <script>
 var logEl = document.getElementById('log');
-
-function out(msg, cls) {
-  var d = document.createElement('div');
-  if (cls) d.className = cls;
-  d.textContent = msg;
-  logEl.appendChild(d);
-  logEl.scrollTop = logEl.scrollHeight;
-}
-
-function fetchT(url, ms) {
-  var timeout = new Promise(function(_, reject) {
-    setTimeout(function() { reject(new Error('timeout ' + ms + 'ms')); }, ms || 8000);
-  });
-  return Promise.race([fetch(url), timeout]);
-}
-
-function extractId(url) {
-  var m = url.match(/(?:v=|youtu\.be\/|\/shorts\/)([a-zA-Z0-9_-]{11})/);
-  return m ? m[1] : null;
-}
-
-function isGoogleError(text) {
-  var s = text.substring(0, 500).toLowerCase();
-  return (s.indexOf('sorry') > -1 && s.indexOf('automated') > -1) || (s.indexOf('<html') > -1 && s.indexOf('sorry') > -1);
-}
+function out(msg, cls) { var d = document.createElement('div'); if (cls) d.className = cls; d.textContent = msg; logEl.appendChild(d); logEl.scrollTop = logEl.scrollHeight; }
+function fetchT(url, ms) { var t = new Promise(function(_, rej) { setTimeout(function() { rej(new Error('timeout')); }, ms || 8000); }); return Promise.race([fetch(url), t]); }
+function extractId(url) { var m = url.match(/(?:v=|youtu\.be\/|\/shorts\/)([a-zA-Z0-9_-]{11})/); return m ? m[1] : null; }
 
 async function runTest() {
   logEl.innerHTML = '';
-  var url = document.getElementById('url').value.trim();
-  if (!url) { out('Colle une URL', 'err'); return; }
-  var vid = extractId(url);
+  var vid = extractId(document.getElementById('url').value.trim());
   if (!vid) { out('URL invalide', 'err'); return; }
   out('Video ID: ' + vid, 'ok');
-
-  // ══ INVIDIOUS FIRST ══
   out('');
-  out('== INVIDIOUS (prioritaire) ==', 'info');
 
-  var invs = [
-    'https://inv.nadeko.net',
-    'https://iv.ggtyler.dev',
-    'https://invidious.fdn.fr',
-    'https://vid.puffyan.us',
-    'https://invidious.nerdvpn.de'
-  ];
+  var base = 'https://inv.nadeko.net';
+  out('== ' + base + ' ==', 'info');
 
-  for (var k = 0; k < invs.length; k++) {
-    var base = invs[k];
+  try {
+    var r = await fetchT(base + '/api/v1/captions/' + vid, 8000);
+    out('HTTP: ' + r.status, r.ok ? 'ok' : 'err');
+    if (!r.ok) return;
+    var data = await r.json();
+    var caps = data.captions || [];
+    out(caps.length + ' caption(s)', 'ok');
     out('');
-    out('-- ' + base + ' --', 'info');
-    try {
-      var r = await fetchT(base + '/api/v1/captions/' + vid, 8000);
-      out('  HTTP: ' + r.status, r.ok ? 'ok' : 'err');
-      if (!r.ok) continue;
-      var data = await r.json();
-      var caps = data.captions || [];
-      out('  ' + caps.length + ' caption(s)', 'ok');
 
-      var ruCap = null;
-      for (var c = 0; c < caps.length; c++) {
-        var cap = caps[c];
-        var lc = (cap.language_code || '').toLowerCase();
-        var lb = (cap.label || '').toLowerCase();
-        var isRu = lc === 'ru' || lb.indexOf('russian') > -1 || lb.indexOf('русс') > -1 || lb.indexOf('russe') > -1;
-        out('    [' + (cap.language_code || 'undefined') + '] "' + (cap.label || '') + '"' + (isRu ? ' << RUSSE' : ''), isRu ? 'ok' : '');
-        if (isRu) { ruCap = cap; }
+    // Show raw JSON for each caption
+    out('== RAW CAPTION DATA ==', 'info');
+    for (var i = 0; i < caps.length; i++) {
+      out('Caption ' + i + ': ' + JSON.stringify(caps[i]), 'warn');
+    }
+    out('');
+
+    // Find Russian captions
+    var ruCaps = [];
+    for (var i = 0; i < caps.length; i++) {
+      var lb = (caps[i].label || '').toLowerCase();
+      if (lb.indexOf('russian') > -1 || lb.indexOf('русс') > -1 || lb.indexOf('russe') > -1) {
+        ruCaps.push(caps[i]);
       }
+    }
+    out(ruCaps.length + ' piste(s) russe(s)', 'info');
+    out('');
 
-      if (!ruCap) { out('  Pas de caption russe trouvee', 'warn'); continue; }
-      if (!ruCap.url) { out('  Caption russe sans URL!', 'err'); continue; }
+    // For each Russian caption, try ALL formats
+    var formats = ['vtt', 'json3', 'srv3', 'ttml', ''];
+    
+    for (var j = 0; j < ruCaps.length; j++) {
+      var cap = ruCaps[j];
+      out('=== "' + cap.label + '" ===', 'info');
+      out('URL brute: ' + cap.url);
+      out('');
 
-      // Try downloading VTT
-      var subUrl = base + ruCap.url;
-      if (subUrl.indexOf('fmt=') === -1) subUrl += '&fmt=vtt';
-      out('  Telechargement VTT: ' + subUrl.substring(0, 100) + '...');
-
-      try {
-        var vr = await fetchT(subUrl, 8000);
-        out('  VTT HTTP: ' + vr.status, vr.ok ? 'ok' : 'err');
-        if (vr.ok) {
-          var vtt = await vr.text();
-          if (isGoogleError(vtt)) {
-            out('  BLOQUE par Google (Sorry page)', 'err');
-          } else {
-            out('  VTT recu: ' + vtt.length + ' chars', 'ok');
-            out('  Apercu: ' + vtt.substring(0, 300), 'ok');
-            out('');
-            out('  >>> CETTE METHODE FONCTIONNE! <<<', 'ok');
-          }
+      for (var f = 0; f < formats.length; f++) {
+        var fmt = formats[f];
+        var subUrl = base + cap.url;
+        if (fmt) {
+          // Remove existing fmt if any, add new one
+          subUrl = subUrl.replace(/[&?]fmt=[^&]*/, '');
+          subUrl += (subUrl.indexOf('?') > -1 ? '&' : '?') + 'fmt=' + fmt;
         }
-      } catch (ve) {
-        out('  VTT erreur: ' + ve.message, 'err');
+        
+        out('  Format "' + (fmt || 'default') + '":', 'info');
+        out('  URL: ' + subUrl.substring(0, 140));
+
+        try {
+          var sr = await fetchT(subUrl, 8000);
+          out('  HTTP: ' + sr.status, sr.ok ? 'ok' : 'err');
+          if (!sr.ok) { out(''); continue; }
+          var txt = await sr.text();
+          out('  Taille: ' + txt.length + ' chars', txt.length > 50 ? 'ok' : 'err');
+          if (txt.length > 0 && txt.length <= 500) {
+            out('  Contenu: ' + txt, txt.length > 50 ? 'ok' : 'warn');
+          } else if (txt.length > 500) {
+            out('  Apercu: ' + txt.substring(0, 400), 'ok');
+            out('  >>> SUCCES ! Format "' + (fmt || 'default') + '" fonctionne <<<', 'ok');
+          }
+        } catch (e) {
+          out('  Erreur: ' + e.message, 'err');
+        }
+        out('');
       }
-    } catch (err) {
-      out('  ' + err.message, 'err');
     }
-  }
 
-  // ══ CORS PROXIES ══
-  out('');
-  out('== CORS PROXIES (fallback) ==', 'info');
-
-  var proxies = [
-    ['codetabs', 'https://api.codetabs.com/v1/proxy?quest=' + encodeURIComponent('https://www.youtube.com/watch?v=' + vid)],
-    ['allorigins', 'https://api.allorigins.win/raw?url=' + encodeURIComponent('https://www.youtube.com/watch?v=' + vid)]
-  ];
-
-  for (var i = 0; i < proxies.length; i++) {
-    var name = proxies[i][0];
-    var purl = proxies[i][1];
+    // Also try direct video endpoint
     out('');
-    out('-- ' + name + ' --', 'info');
+    out('== TEST: endpoint /api/v1/videos ==', 'info');
     try {
-      var resp = await fetchT(purl, 12000);
-      out('  HTTP: ' + resp.status, resp.ok ? 'ok' : 'err');
-      if (!resp.ok) continue;
-      var html = await resp.text();
-      out('  Taille: ' + html.length + ' chars', 'ok');
-      var hasCaptions = html.indexOf('captionTracks') > -1;
-      out('  captionTracks: ' + (hasCaptions ? 'OUI' : 'NON'), hasCaptions ? 'ok' : 'warn');
-    } catch (err) {
-      out('  ERREUR: ' + err.message, 'err');
-    }
+      var vr = await fetchT(base + '/api/v1/videos/' + vid + '?fields=captions', 8000);
+      out('HTTP: ' + vr.status, vr.ok ? 'ok' : 'err');
+      if (vr.ok) {
+        var vd = await vr.text();
+        out('Taille: ' + vd.length + ' chars');
+        out('Contenu: ' + vd.substring(0, 500), 'warn');
+      }
+    } catch (e) { out('Erreur: ' + e.message, 'err'); }
+
+  } catch (e) {
+    out('Erreur: ' + e.message, 'err');
   }
 
   out('');
