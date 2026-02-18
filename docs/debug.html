@@ -1,0 +1,179 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>YT Debug v3</title>
+<style>
+* { margin:0; padding:0; box-sizing:border-box; }
+body { font-family: -apple-system, sans-serif; background:#0a0a14; color:#e8e8f0; padding:20px; }
+h1 { font-size:18px; color:#e94560; margin-bottom:16px; }
+input { width:100%; padding:12px; background:#1a1a2e; border:1px solid #2a2a3e; border-radius:10px; color:#e8e8f0; font-size:15px; margin-bottom:12px; outline:none; }
+button { padding:12px 20px; background:#e94560; color:#fff; border:none; border-radius:10px; font-size:15px; font-weight:600; cursor:pointer; width:100%; margin-bottom:16px; }
+.log { background:#12121f; border-radius:10px; padding:14px; font-family:'Courier New',monospace; font-size:12px; line-height:1.8; max-height:70vh; overflow-y:auto; white-space:pre-wrap; word-break:break-all; }
+.ok { color:#4ecca3; }
+.err { color:#e94560; }
+.warn { color:#f0c040; }
+.info { color:#5b8def; }
+</style>
+</head>
+<body>
+
+<h1>🔍 YT Debug v3 — no AbortController</h1>
+<input type="url" id="url" placeholder="https://youtube.com/watch?v=…">
+<button onclick="runTest()">Tester</button>
+<div class="log" id="log">En attente…</div>
+
+<script>
+var logEl = document.getElementById('log');
+
+function out(msg, cls) {
+  var d = document.createElement('div');
+  if (cls) d.className = cls;
+  d.textContent = msg;
+  logEl.appendChild(d);
+  logEl.scrollTop = logEl.scrollHeight;
+}
+
+// Zero AbortController — just Promise.race
+function fetchT(url, ms) {
+  var timeout = new Promise(function(_, reject) {
+    setTimeout(function() { reject(new Error('timeout ' + ms + 'ms')); }, ms || 8000);
+  });
+  return Promise.race([fetch(url), timeout]);
+}
+
+function extractId(url) {
+  var m = url.match(/(?:v=|youtu\.be\/|\/shorts\/)([a-zA-Z0-9_-]{11})/);
+  return m ? m[1] : null;
+}
+
+async function runTest() {
+  logEl.innerHTML = '';
+  var url = document.getElementById('url').value.trim();
+  if (!url) { out('Colle une URL', 'err'); return; }
+  var vid = extractId(url);
+  if (!vid) { out('URL invalide', 'err'); return; }
+  out('Video ID: ' + vid, 'ok');
+
+  // Test 0: est-ce que fetch marche tout court?
+  out('');
+  out('== TEST BASIQUE: fetch marche? ==', 'info');
+  try {
+    var tr = await fetch('https://httpbin.org/get');
+    out('fetch httpbin: HTTP ' + tr.status, 'ok');
+  } catch(e) {
+    out('fetch httpbin ECHEC: ' + e.message, 'err');
+  }
+
+  // CORS Proxies
+  out('');
+  out('== CORS PROXIES ==', 'info');
+  var ytUrl = 'https://www.youtube.com/watch?v=' + vid;
+
+  var proxies = [
+    ['codetabs', 'https://api.codetabs.com/v1/proxy?quest=' + encodeURIComponent(ytUrl)],
+    ['corsproxy.io', 'https://corsproxy.io/?' + encodeURIComponent(ytUrl)],
+    ['allorigins', 'https://api.allorigins.win/raw?url=' + encodeURIComponent(ytUrl)]
+  ];
+
+  for (var i = 0; i < proxies.length; i++) {
+    var name = proxies[i][0];
+    var purl = proxies[i][1];
+    out('');
+    out('-- ' + name + ' --', 'info');
+    try {
+      var resp = await fetchT(purl, 12000);
+      out('  HTTP: ' + resp.status, resp.ok ? 'ok' : 'err');
+      if (!resp.ok) continue;
+      var html = await resp.text();
+      out('  Taille: ' + html.length + ' chars', 'ok');
+      var hasCaptions = html.indexOf('captionTracks') > -1;
+      out('  captionTracks: ' + (hasCaptions ? 'OUI' : 'NON'), hasCaptions ? 'ok' : 'warn');
+      if (!hasCaptions) {
+        out('  Debut: ' + html.substring(0, 300), 'warn');
+        continue;
+      }
+      var m = html.match(/"captionTracks"\s*:\s*(\[.*?\])/);
+      if (m) {
+        var js = m[1].replace(/\\u0026/g, '&').replace(/\\"/g, '"');
+        var tracks = JSON.parse(js);
+        out('  ' + tracks.length + ' piste(s)', 'ok');
+        for (var j = 0; j < tracks.length; j++) {
+          var t = tracks[j];
+          var lang = t.languageCode || '?';
+          var nm = (t.name && t.name.simpleText) || '';
+          var ru = (lang === 'ru') || nm.toLowerCase().indexOf('русс') > -1;
+          out('    [' + lang + '] ' + nm + (ru ? ' << RUSSE' : ''), ru ? 'ok' : '');
+          if (ru && t.baseUrl) {
+            out('    Fetch subs...');
+            try {
+              // Build proxy URL for the subtitle baseUrl
+              var subProxy;
+              if (name === 'codetabs') subProxy = 'https://api.codetabs.com/v1/proxy?quest=' + encodeURIComponent(t.baseUrl);
+              else if (name === 'corsproxy.io') subProxy = 'https://corsproxy.io/?' + encodeURIComponent(t.baseUrl);
+              else subProxy = 'https://api.allorigins.win/raw?url=' + encodeURIComponent(t.baseUrl);
+              var sr = await fetchT(subProxy, 8000);
+              if (sr.ok) {
+                var stxt = await sr.text();
+                out('    GOT ' + stxt.length + ' chars', 'ok');
+                out('    ' + stxt.substring(0, 250), 'ok');
+              } else {
+                out('    sub HTTP ' + sr.status, 'err');
+              }
+            } catch(se) { out('    sub err: ' + se.message, 'err'); }
+          }
+        }
+      }
+    } catch (err) {
+      out('  ERREUR: ' + err.message, 'err');
+    }
+  }
+
+  // Invidious
+  out('');
+  out('== INVIDIOUS ==', 'info');
+  var invs = [
+    'https://inv.nadeko.net',
+    'https://invidious.fdn.fr',
+    'https://vid.puffyan.us',
+    'https://invidious.nerdvpn.de',
+    'https://iv.ggtyler.dev'
+  ];
+  for (var k = 0; k < invs.length; k++) {
+    var base = invs[k];
+    out('');
+    out('-- ' + base + ' --', 'info');
+    try {
+      var r = await fetchT(base + '/api/v1/captions/' + vid, 6000);
+      out('  HTTP: ' + r.status, r.ok ? 'ok' : 'err');
+      if (!r.ok) continue;
+      var data = await r.json();
+      var caps = data.captions || [];
+      out('  ' + caps.length + ' caption(s)', 'ok');
+      for (var c = 0; c < caps.length; c++) {
+        var cap = caps[c];
+        var isRu = cap.language_code === 'ru';
+        out('    [' + cap.language_code + '] ' + (cap.label||'') + (isRu ? ' << RUSSE' : ''), isRu ? 'ok' : '');
+        if (isRu && cap.url) {
+          try {
+            var vr = await fetchT(base + cap.url + '&fmt=vtt', 6000);
+            if (vr.ok) {
+              var vtt = await vr.text();
+              out('    VTT: ' + vtt.length + ' chars', 'ok');
+              out('    ' + vtt.substring(0, 150), 'ok');
+            }
+          } catch(ve) { out('    VTT: ' + ve.message, 'err'); }
+        }
+      }
+    } catch(e2) {
+      out('  ' + e2.message, 'err');
+    }
+  }
+
+  out('');
+  out('== TERMINE ==', 'info');
+}
+</script>
+</body>
+</html>
