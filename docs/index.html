@@ -786,6 +786,14 @@ input[type="file"] { display: none; }
         </div>
       </div>
 
+      <div class="section-title">YouTube</div>
+      <div style="font-size:12px;color:var(--muted);margin-bottom:8px;line-height:1.5;">
+        Pour importer les sous-titres YouTube automatiquement, tu as besoin d'un Worker Cloudflare (gratuit).
+        <a href="https://workers.cloudflare.com" target="_blank" style="color:var(--accent);">Créer un Worker →</a>
+      </div>
+      <input type="url" id="workerUrlInput" placeholder="https://rusvault-yt.TONNOM.workers.dev" style="margin-bottom:8px;">
+      <button class="action-btn secondary" id="btnSaveWorker">💾 Sauvegarder l'URL du Worker</button>
+
       <div class="section-title">Data</div>
       <button class="action-btn secondary" id="btnExport">📤 Export Database (JSON)</button>
       <button class="action-btn secondary" id="btnImport">📥 Import Database (JSON)</button>
@@ -855,23 +863,23 @@ input[type="file"] { display: none; }
   <div class="modal">
     <h2>🎥 YouTube → RusVault</h2>
 
-    <div style="background:var(--surface2);border-radius:10px;padding:12px;margin-bottom:14px;line-height:1.6;">
-      <div style="font-size:14px;font-weight:700;margin-bottom:6px;">📋 Comment récupérer le transcript</div>
-      <div style="font-size:13px;color:var(--muted);">
-        <b>Sur iPhone Safari :</b><br>
-        1. Sur la vidéo YouTube, tape <b>⋯</b> (sous la vidéo)<br>
-        2. Tape <b>Afficher la transcription</b><br>
-        3. Sélectionne tout le texte → <b>Copier</b><br>
-        4. Colle ici ↓
+    <div style="margin-bottom:14px;">
+      <div style="font-size:14px;font-weight:600;margin-bottom:6px;">Option 1 — URL automatique</div>
+      <input type="url" id="ytUrl" placeholder="https://youtube.com/watch?v=…">
+      <button class="action-btn primary" id="ytSubmitUrl" style="margin-bottom:0;">🔍 Chercher les sous-titres</button>
+      <div id="ytStatus" style="font-size:12px;color:var(--muted);text-align:center;min-height:18px;margin-top:6px;"></div>
+    </div>
+
+    <div style="background:var(--surface2);border-radius:10px;padding:10px 12px;margin-bottom:10px;line-height:1.5;">
+      <div style="font-size:13px;font-weight:600;margin-bottom:4px;">Option 2 — Copier-coller</div>
+      <div style="font-size:12px;color:var(--muted);">
+        YouTube → <b>⋯</b> sous la vidéo → <b>Afficher la transcription</b> → Copier tout → Coller ici ↓
       </div>
     </div>
 
-    <textarea id="ytText" placeholder="Colle le transcript russe ici…
-&#10;Exemple :&#10;0:01 Привет всем&#10;0:05 Сегодня мы поговорим о..." style="min-height:160px;"></textarea>
-    
-    <input type="text" id="ytTitle" placeholder="Titre (optionnel, ex: nom de la vidéo)">
-    
-    <button class="action-btn primary" id="ytSubmitText">📄 Importer</button>
+    <textarea id="ytText" placeholder="Colle le transcript russe ici…" style="min-height:120px;"></textarea>
+    <input type="text" id="ytTitle" placeholder="Titre (optionnel)">
+    <button class="action-btn primary" id="ytSubmitText">📄 Importer le texte</button>
     <button class="action-btn secondary" style="margin-top:8px" onclick="closeModal('ytModal')">Annuler</button>
   </div>
 </div>
@@ -1122,6 +1130,42 @@ document.getElementById('fileInput').addEventListener('change', (e) => {
 // ── YouTube ──
 document.getElementById('btnYT').addEventListener('click', function() { openModal('ytModal'); });
 
+// Option 1: Auto URL
+document.getElementById('ytSubmitUrl').addEventListener('click', async function() {
+  var url = document.getElementById('ytUrl').value.trim();
+  var status = document.getElementById('ytStatus');
+  if (!url) { showToast('Entre une URL YouTube'); return; }
+
+  var videoId = extractYTId(url);
+  if (!videoId) { showToast('❌ URL invalide'); return; }
+
+  status.textContent = '⏳ Recherche des sous-titres…';
+
+  try {
+    var workerUrl = localStorage.getItem('rusvault_worker_url');
+    if (!workerUrl) {
+      status.innerHTML = '⚠️ Configure ton Worker dans Settings d\'abord.';
+      return;
+    }
+    var subs = await fetchYTSubtitles(videoId);
+    if (subs && subs.length > 20) {
+      var title = document.getElementById('ytTitle').value.trim() || 'YouTube: ' + videoId;
+      loadText(subs, title);
+      closeModal('ytModal');
+      document.getElementById('ytUrl').value = '';
+      document.getElementById('ytTitle').value = '';
+      status.textContent = '';
+      showToast('✓ Sous-titres importés !');
+    } else {
+      status.textContent = '⚠️ Pas trouvé. Utilise le copier-coller ci-dessous.';
+    }
+  } catch (err) {
+    console.error('[RusVault YT]', err);
+    status.textContent = '⚠️ Échec. Utilise le copier-coller ci-dessous.';
+  }
+});
+
+// Option 2: Paste
 document.getElementById('ytSubmitText').addEventListener('click', function() {
   var text = document.getElementById('ytText').value.trim();
   if (!text) { showToast('Colle du texte d\'abord'); return; }
@@ -1131,8 +1175,37 @@ document.getElementById('ytSubmitText').addEventListener('click', function() {
   loadText(cleaned, title);
   closeModal('ytModal');
   document.getElementById('ytText').value = '';
+  document.getElementById('ytUrl').value = '';
   document.getElementById('ytTitle').value = '';
+  document.getElementById('ytStatus').textContent = '';
 });
+
+function extractYTId(url) {
+  var m = url.match(/(?:v=|youtu\.be\/|\/shorts\/)([a-zA-Z0-9_-]{11})/);
+  return m ? m[1] : null;
+}
+
+async function fetchYTSubtitles(videoId) {
+  // Use Cloudflare Worker as proxy (server-side = no CORS, no bot block)
+  var workerUrl = localStorage.getItem('rusvault_worker_url');
+  if (!workerUrl) {
+    throw new Error('Worker URL not configured');
+  }
+
+  var resp = await fetchWithTimeout(workerUrl + '?v=' + videoId + '&lang=ru', {}, 15000);
+  if (!resp.ok) {
+    var err = await resp.json().catch(function() { return {}; });
+    throw new Error(err.error || 'Worker error ' + resp.status);
+  }
+
+  var data = await resp.json();
+  if (data.ok && data.text && data.text.length > 20) {
+    return data.text;
+  }
+
+  if (data.error) throw new Error(data.error);
+  return null;
+}
 
 function cleanTranscript(text) {
   return text
@@ -1796,6 +1869,28 @@ document.getElementById('btnResetSW').addEventListener('click', async function()
     showToast('Erreur: ' + e.message);
   }
 });
+
+// Worker URL
+(function() {
+  var input = document.getElementById('workerUrlInput');
+  var saved = localStorage.getItem('rusvault_worker_url') || '';
+  if (saved) input.value = saved;
+
+  document.getElementById('btnSaveWorker').addEventListener('click', function() {
+    var url = input.value.trim();
+    if (url && !url.startsWith('https://')) {
+      showToast('❌ L\'URL doit commencer par https://');
+      return;
+    }
+    if (url) {
+      localStorage.setItem('rusvault_worker_url', url);
+      showToast('✓ URL du Worker sauvegardée !');
+    } else {
+      localStorage.removeItem('rusvault_worker_url');
+      showToast('URL du Worker supprimée');
+    }
+  });
+})();
 
 })();
 </script>
