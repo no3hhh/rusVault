@@ -711,6 +711,7 @@ input[type="file"] { display: none; }
           <span class="stat-known">⚪ Known: <b id="countKnown">0</b></span>
         </div>
         <div id="textBody"></div>
+        <button class="action-btn primary" id="btnFinishLesson" style="margin:16px 0;display:none;">✅ Fin de leçon — marquer les mots bleus comme connus</button>
       </div>
     </div>
 
@@ -1226,6 +1227,7 @@ function loadText(text, title) {
   const rc = document.getElementById('readerContent');
   rc.classList.add('has-text');
   document.getElementById('readerLabel').textContent = title || 'Text';
+  document.getElementById('btnFinishLesson').style.display = '';
 
   renderText(text);
   updateReaderFont();
@@ -1235,6 +1237,7 @@ document.getElementById('btnCloseText').addEventListener('click', () => {
   document.getElementById('importArea').style.display = '';
   document.getElementById('readerContent').classList.remove('has-text');
   document.getElementById('textBody').innerHTML = '';
+  document.getElementById('btnFinishLesson').style.display = 'none';
 });
 
 // ── Render text with word coloring ──
@@ -1559,6 +1562,59 @@ async function saveWord(status) {
   hideWordPanel();
   recolorWords();
 }
+
+// ── Finish lesson: mark all untouched blue words as known ──
+document.getElementById('btnFinishLesson').addEventListener('click', async function() {
+  var newWords = document.querySelectorAll('#textBody .w.w-new');
+  if (newWords.length === 0) {
+    showToast('Aucun mot bleu restant !');
+    return;
+  }
+
+  // Collect unique new words
+  var seen = {};
+  var toMark = [];
+  for (var i = 0; i < newWords.length; i++) {
+    var w = newWords[i].dataset.w;
+    if (!seen[w]) {
+      seen[w] = true;
+      toMark.push(w);
+    }
+  }
+
+  var now = new Date().toISOString();
+  var count = 0;
+
+  for (var j = 0; j < toMark.length; j++) {
+    var word = toMark[j];
+    var existing = wordCache.get(word);
+
+    if (existing) {
+      existing.status = 'known';
+      existing.lastSeen = now;
+      await dbPut('words', existing);
+      wordCache.set(word, existing);
+    } else {
+      var entry = {
+        word: word,
+        wordLower: word,
+        translation: '',
+        status: 'known',
+        encounters: 1,
+        contexts: [],
+        createdAt: now,
+        lastSeen: now
+      };
+      var id = await dbAdd('words', entry);
+      entry.id = id;
+      wordCache.set(word, entry);
+    }
+    count++;
+  }
+
+  recolorWords();
+  showToast('✅ ' + count + ' mots marqués comme connus !');
+});
 
 // ══════════════════════════════════════════
 //  VOCAB LIST
