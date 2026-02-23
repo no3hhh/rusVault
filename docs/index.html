@@ -672,6 +672,20 @@ input[type="file"] { display: none; }
 ::-webkit-scrollbar { width: 4px; }
 ::-webkit-scrollbar-track { background: transparent; }
 ::-webkit-scrollbar-thumb { background: var(--border); border-radius: 2px; }
+
+/* Lesson cards */
+.lesson-card { background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:12px 14px;margin-bottom:10px;cursor:pointer;transition:border-color .2s; }
+.lesson-card:active { border-color:var(--accent); }
+.lesson-card-title { font-weight:600;font-size:14px;margin-bottom:4px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis; }
+.lesson-card-meta { font-size:11px;color:var(--muted);display:flex;justify-content:space-between;align-items:center; }
+.lesson-card-progress { display:flex;gap:8px;font-size:11px;margin-top:6px; }
+.lesson-card-progress span { display:flex;align-items:center;gap:2px; }
+.lesson-card-bar { height:4px;border-radius:2px;background:var(--surface2);margin-top:6px;overflow:hidden; }
+.lesson-card-bar-fill { height:100%;border-radius:2px;transition:width .3s; }
+.lesson-card-actions { display:flex;gap:6px;margin-top:8px; }
+.lesson-card-actions button { flex:1;padding:6px;border:none;border-radius:8px;font-size:12px;font-weight:600;cursor:pointer; }
+.lesson-btn-resume { background:var(--accent);color:#fff; }
+.lesson-btn-delete { background:var(--surface2);color:var(--muted); }
 </style>
 </head>
 <body>
@@ -698,6 +712,7 @@ input[type="file"] { display: none; }
           <button class="import-btn" id="btnYT"><span class="em">🎥</span> YouTube</button>
         </div>
         <input type="file" id="fileInput" accept=".txt">
+        <div id="lessonList" style="margin-top:20px;"></div>
       </div>
 
       <div id="readerContent" class="reader-content">
@@ -924,13 +939,14 @@ function fetchWithTimeout(url, opts, ms) {
   return Promise.race([fetch(url, opts || {}), timeout]);
 }
 const DB_NAME = 'rusvault';
-const DB_VERSION = 1;
+const DB_VERSION = 2;
 
 // ── State ──
 let db = null;
 let wordCache = new Map();    // word (lowercase) → { id, status, encounters, translation }
 let currentWord = null;       // word being shown in panel
 let currentCtx = '';          // context sentence for current word
+let currentLessonId = null;   // active lesson ID
 let settings = {
   darkMode: true,
   fontSize: 18
@@ -957,6 +973,11 @@ function openDB() {
       if (!db.objectStoreNames.contains('sources')) {
         const ss = db.createObjectStore('sources', { keyPath: 'id', autoIncrement: true });
         ss.createIndex('type', 'type', { unique: false });
+      }
+
+      if (!db.objectStoreNames.contains('lessons')) {
+        const ls = db.createObjectStore('lessons', { keyPath: 'id', autoIncrement: true });
+        ls.createIndex('createdAt', 'createdAt', { unique: false });
       }
     };
     req.onsuccess = (e) => { db = e.target.result; resolve(db); };
@@ -1048,6 +1069,7 @@ tabs.forEach(tab => {
     tab.classList.add('active');
     document.getElementById(target).classList.add('active');
 
+    if (target === 'viewReader') renderLessonList();
     if (target === 'viewVocab') renderVocabList();
     if (target === 'viewStats') renderStats();
   });
@@ -1107,6 +1129,7 @@ document.getElementById('pasteSubmit').addEventListener('click', () => {
   const text = document.getElementById('pasteInput').value.trim();
   if (!text) return;
   const title = document.getElementById('pasteTitle').value.trim() || 'Pasted text';
+  currentLessonId = null;
   loadText(text, title);
   closeModal('pasteModal');
   document.getElementById('pasteInput').value = '';
@@ -1122,6 +1145,7 @@ document.getElementById('fileInput').addEventListener('change', (e) => {
   if (!file) return;
   const reader = new FileReader();
   reader.onload = (ev) => {
+    currentLessonId = null;
     loadText(ev.target.result, file.name);
   };
   reader.readAsText(file);
@@ -1151,6 +1175,7 @@ document.getElementById('ytSubmitUrl').addEventListener('click', async function(
     var subs = await fetchYTSubtitles(videoId);
     if (subs && subs.length > 20) {
       var title = document.getElementById('ytTitle').value.trim() || 'YouTube: ' + videoId;
+      currentLessonId = null;
       loadText(subs, title);
       closeModal('ytModal');
       document.getElementById('ytUrl').value = '';
@@ -1173,6 +1198,7 @@ document.getElementById('ytSubmitText').addEventListener('click', function() {
   var title = document.getElementById('ytTitle').value.trim() || 'YouTube transcript';
   var cleaned = cleanTranscript(text);
   if (cleaned.length < 10) { showToast('Pas assez de texte'); return; }
+  currentLessonId = null;
   loadText(cleaned, title);
   closeModal('ytModal');
   document.getElementById('ytText').value = '';
@@ -1222,7 +1248,7 @@ function cleanTranscript(text) {
 }
 
 // ── Load text into reader ──
-function loadText(text, title) {
+async function loadText(text, title) {
   document.getElementById('importArea').style.display = 'none';
   const rc = document.getElementById('readerContent');
   rc.classList.add('has-text');
@@ -1231,6 +1257,130 @@ function loadText(text, title) {
 
   renderText(text);
   updateReaderFont();
+
+  // Save as lesson
+  if (!currentLessonId) {
+    var now = new Date().toISOString();
+    var lesson = {
+      title: title || 'Text',
+      text: text,
+      createdAt: now,
+      lastOpenedAt: now
+    };
+    var id = await dbAdd('lessons', lesson);
+    currentLessonId = id;
+  } else {
+    // Update lastOpenedAt
+    try {
+      var les = await dbGet('lessons', currentLessonId);
+      if (les) {
+        les.lastOpenedAt = new Date().toISOString();
+        await dbPut('lessons', les);
+      }
+    } catch (e) {}
+  }
+}
+
+function openLesson(lesson) {
+  currentLessonId = lesson.id;
+  loadText(lesson.text, lesson.title);
+}
+
+async function deleteLesson(id) {
+  return new Promise(function(resolve, reject) {
+    var t = db.transaction('lessons', 'readwrite');
+    var req = t.objectStore('lessons').delete(id);
+    req.onsuccess = function() { resolve(); };
+    req.onerror = function(e) { reject(e.target.error); };
+  });
+}
+
+async function renderLessonList() {
+  var container = document.getElementById('lessonList');
+  var lessons = await dbGetAll('lessons');
+  
+  if (lessons.length === 0) {
+    container.innerHTML = '';
+    return;
+  }
+
+  // Sort by lastOpenedAt descending
+  lessons.sort(function(a, b) {
+    return (b.lastOpenedAt || b.createdAt).localeCompare(a.lastOpenedAt || a.createdAt);
+  });
+
+  var html = '<div style="font-size:14px;font-weight:700;margin-bottom:10px;">📚 Mes leçons</div>';
+
+  for (var i = 0; i < lessons.length; i++) {
+    var l = lessons[i];
+    // Count word stats for this lesson
+    var words = l.text.match(RU_WORD) || [];
+    var uniqueWords = {};
+    for (var j = 0; j < words.length; j++) {
+      uniqueWords[words[j].toLowerCase()] = true;
+    }
+    var unique = Object.keys(uniqueWords);
+    var newC = 0, knownC = 0, savedC = 0;
+    for (var k = 0; k < unique.length; k++) {
+      var cached = wordCache.get(unique[k]);
+      if (!cached) newC++;
+      else if (cached.status === 'known' || cached.status === 'ignored') knownC++;
+      else savedC++;
+    }
+    var total = unique.length || 1;
+    var pctKnown = Math.round((knownC / total) * 100);
+    var pctSaved = Math.round((savedC / total) * 100);
+
+    var dateStr = '';
+    try {
+      var d = new Date(l.lastOpenedAt || l.createdAt);
+      dateStr = d.toLocaleDateString('fr-FR', { day: 'numeric', month: 'short' });
+    } catch (e) {}
+
+    html += '<div class="lesson-card" data-lesson-id="' + l.id + '">';
+    html += '<div class="lesson-card-title">' + escHtml(l.title) + '</div>';
+    html += '<div class="lesson-card-meta"><span>' + dateStr + '</span><span>' + unique.length + ' mots</span></div>';
+    html += '<div class="lesson-card-progress">';
+    html += '<span>🔵 ' + newC + '</span>';
+    html += '<span>🟡 ' + savedC + '</span>';
+    html += '<span>⚪ ' + knownC + '</span>';
+    html += '<span style="margin-left:auto;font-weight:600;">' + pctKnown + '%</span>';
+    html += '</div>';
+    html += '<div class="lesson-card-bar"><div class="lesson-card-bar-fill" style="width:' + pctKnown + '%;background:var(--green);"></div></div>';
+    html += '<div class="lesson-card-actions">';
+    html += '<button class="lesson-btn-resume" data-resume="' + l.id + '">▶ Reprendre</button>';
+    html += '<button class="lesson-btn-delete" data-del="' + l.id + '">🗑</button>';
+    html += '</div>';
+    html += '</div>';
+  }
+
+  container.innerHTML = html;
+
+  // Event listeners
+  container.querySelectorAll('[data-resume]').forEach(function(btn) {
+    btn.addEventListener('click', async function(e) {
+      e.stopPropagation();
+      var id = parseInt(this.dataset.resume);
+      var lesson = await dbGet('lessons', id);
+      if (lesson) openLesson(lesson);
+    });
+  });
+
+  container.querySelectorAll('[data-del]').forEach(function(btn) {
+    btn.addEventListener('click', async function(e) {
+      e.stopPropagation();
+      var id = parseInt(this.dataset.del);
+      if (confirm('Supprimer cette leçon ?')) {
+        await deleteLesson(id);
+        renderLessonList();
+        showToast('Leçon supprimée');
+      }
+    });
+  });
+}
+
+function escHtml(s) {
+  return s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
 }
 
 document.getElementById('btnCloseText').addEventListener('click', () => {
@@ -1238,6 +1388,8 @@ document.getElementById('btnCloseText').addEventListener('click', () => {
   document.getElementById('readerContent').classList.remove('has-text');
   document.getElementById('textBody').innerHTML = '';
   document.getElementById('btnFinishLesson').style.display = 'none';
+  currentLessonId = null;
+  renderLessonList();
 });
 
 // ── Render text with word coloring ──
@@ -1894,6 +2046,7 @@ async function init() {
   loadSettings();
   await openDB();
   await loadWordCache();
+  renderLessonList();
   console.log(`[RusVault] Ready. ${wordCache.size} words cached.`);
 }
 
