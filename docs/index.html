@@ -1172,7 +1172,7 @@ document.getElementById('ytSubmitUrl').addEventListener('click', async function(
   try {
     var workerUrl = localStorage.getItem('rusvault_worker_url');
     if (!workerUrl) {
-      status.innerHTML = '⚠️ Configure ton Worker dans Settings d\'abord.';
+      status.innerHTML = '⚠️ Configure ton Worker dans <b>Settings</b> d\'abord.';
       return;
     }
     var subs = await fetchYTSubtitles(videoId);
@@ -1190,7 +1190,7 @@ document.getElementById('ytSubmitUrl').addEventListener('click', async function(
     }
   } catch (err) {
     console.error('[RusVault YT]', err);
-    status.textContent = '⚠️ Échec. Utilise le copier-coller ci-dessous.';
+    status.textContent = '⚠️ ' + (err.message || 'Échec') + '. Essaie le copier-coller.';
   }
 });
 
@@ -1219,31 +1219,21 @@ async function fetchYTSubtitles(videoId) {
   // Use Cloudflare Worker as proxy (server-side = no CORS, no bot block)
   var workerUrl = localStorage.getItem('rusvault_worker_url');
   if (!workerUrl) {
-    throw new Error('Worker URL not configured');
+    throw new Error('Configure le Worker dans Settings');
   }
 
-  // Try subtitles first
   var status = document.getElementById('ytStatus');
-  status.textContent = '⏳ Recherche des sous-titres…';
+  status.textContent = '1/2 - Recherche des sous-titres...';
 
-  var resp = await fetchWithTimeout(workerUrl + '?v=' + videoId + '&lang=ru', {}, 15000);
+  var resp = await fetchWithTimeout(workerUrl + '?v=' + videoId + '&lang=ru&mode=auto', {}, 120000);
   var data = await resp.json().catch(function() { return {}; });
 
-  if (data.ok && data.text && data.text.length > 20) {
+  if (data.ok && data.text && data.text.length > 10) {
+    status.textContent = (data.source === 'whisper' ? '🎙 Transcrit via Whisper' : '📝 Sous-titres trouves');
     return data.text;
   }
 
-  // No subtitles → try Whisper transcription
-  status.textContent = '🎙 Pas de sous-titres, transcription Whisper en cours…';
-
-  var resp2 = await fetchWithTimeout(workerUrl + '?v=' + videoId + '&whisper=1', {}, 120000);
-  var data2 = await resp2.json().catch(function() { return {}; });
-
-  if (data2.ok && data2.text && data2.text.length > 10) {
-    return data2.text;
-  }
-
-  if (data2.error) throw new Error(data2.error);
+  if (data.error) throw new Error(data.error);
   return null;
 }
 
@@ -1556,13 +1546,42 @@ document.getElementById('panelSpeak').addEventListener('click', function(e) {
 });
 
 function speakRussian(word) {
+  // Method 1: Web Speech API
   if ('speechSynthesis' in window) {
     speechSynthesis.cancel();
     var u = new SpeechSynthesisUtterance(word);
     u.lang = 'ru-RU';
     u.rate = 0.85;
+
+    // Safari needs voices to be loaded first
+    var voices = speechSynthesis.getVoices();
+    var ruVoice = voices.find(function(v) { return v.lang.startsWith('ru'); });
+    if (ruVoice) u.voice = ruVoice;
+
+    u.onerror = function() {
+      // Fallback to Google TTS audio
+      playGoogleTTS(word);
+    };
+
     speechSynthesis.speak(u);
+
+    // Safari bug: speech stops after ~15s of silence, poke it
+    var safariKeepAlive = setInterval(function() {
+      if (!speechSynthesis.speaking) { clearInterval(safariKeepAlive); return; }
+      speechSynthesis.pause();
+      speechSynthesis.resume();
+    }, 5000);
+
+    return;
   }
+
+  // Method 2: Google TTS audio
+  playGoogleTTS(word);
+}
+
+function playGoogleTTS(word) {
+  var audio = new Audio('https://translate.google.com/translate_tts?ie=UTF-8&client=tw-ob&tl=ru&q=' + encodeURIComponent(word));
+  audio.play().catch(function() {});
 }
 
 // ── Translation ──
