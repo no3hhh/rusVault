@@ -850,7 +850,10 @@ input[type="file"] { display: none; }
 <div class="word-panel" id="wordPanel">
   <div class="panel-handle"></div>
   <div class="panel-body">
-    <div class="panel-word" id="panelWord">—</div>
+    <div style="display:flex;align-items:center;gap:10px;">
+      <div class="panel-word" id="panelWord" style="flex:1;">—</div>
+      <button id="panelSpeak" style="background:none;border:none;font-size:24px;cursor:pointer;padding:4px;">🔊</button>
+    </div>
     <div class="panel-translation" id="panelTrans">⏳</div>
     <div class="panel-alts" id="panelAlts"></div>
     <div class="panel-ctx" id="panelCtx"></div>
@@ -1219,18 +1222,28 @@ async function fetchYTSubtitles(videoId) {
     throw new Error('Worker URL not configured');
   }
 
-  var resp = await fetchWithTimeout(workerUrl + '?v=' + videoId + '&lang=ru', {}, 15000);
-  if (!resp.ok) {
-    var err = await resp.json().catch(function() { return {}; });
-    throw new Error(err.error || 'Worker error ' + resp.status);
-  }
+  // Try subtitles first
+  var status = document.getElementById('ytStatus');
+  status.textContent = '⏳ Recherche des sous-titres…';
 
-  var data = await resp.json();
+  var resp = await fetchWithTimeout(workerUrl + '?v=' + videoId + '&lang=ru', {}, 15000);
+  var data = await resp.json().catch(function() { return {}; });
+
   if (data.ok && data.text && data.text.length > 20) {
     return data.text;
   }
 
-  if (data.error) throw new Error(data.error);
+  // No subtitles → try Whisper transcription
+  status.textContent = '🎙 Pas de sous-titres, transcription Whisper en cours…';
+
+  var resp2 = await fetchWithTimeout(workerUrl + '?v=' + videoId + '&whisper=1', {}, 120000);
+  var data2 = await resp2.json().catch(function() { return {}; });
+
+  if (data2.ok && data2.text && data2.text.length > 10) {
+    return data2.text;
+  }
+
+  if (data2.error) throw new Error(data2.error);
   return null;
 }
 
@@ -1534,6 +1547,23 @@ function hideWordPanel() {
 }
 
 document.getElementById('panelOverlay').addEventListener('click', hideWordPanel);
+
+// ── Pronunciation ──
+document.getElementById('panelSpeak').addEventListener('click', function(e) {
+  e.stopPropagation();
+  if (!currentWord) return;
+  speakRussian(currentWord);
+});
+
+function speakRussian(word) {
+  if ('speechSynthesis' in window) {
+    speechSynthesis.cancel();
+    var u = new SpeechSynthesisUtterance(word);
+    u.lang = 'ru-RU';
+    u.rate = 0.85;
+    speechSynthesis.speak(u);
+  }
+}
 
 // ── Translation ──
 async function fetchTranslation(word, sentence) {
