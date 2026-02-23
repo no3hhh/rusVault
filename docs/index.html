@@ -955,6 +955,22 @@ let settings = {
   fontSize: 18
 };
 
+// ── Preload TTS voices (must happen early, before any speak call) ──
+let cachedRuVoice = null;
+let voicesReady = false;
+function preloadVoices() {
+  if (!('speechSynthesis' in window)) return;
+  var voices = speechSynthesis.getVoices();
+  if (voices.length > 0) {
+    cachedRuVoice = voices.find(function(v) { return v.lang && v.lang.startsWith('ru'); }) || null;
+    voicesReady = true;
+  }
+}
+preloadVoices();
+if ('speechSynthesis' in window && speechSynthesis.onvoiceschanged !== undefined) {
+  speechSynthesis.onvoiceschanged = preloadVoices;
+}
+
 // ══════════════════════════════════════════
 //  INDEXEDDB
 // ══════════════════════════════════════════
@@ -1222,14 +1238,25 @@ async function fetchYTSubtitles(videoId) {
     throw new Error('Configure le Worker dans Settings');
   }
 
+  // Ensure URL doesn't have trailing slash
+  workerUrl = workerUrl.replace(/\/+$/, '');
+
   var status = document.getElementById('ytStatus');
-  status.textContent = '1/2 - Recherche des sous-titres...';
+  status.textContent = '⏳ Recherche des sous-titres russes…';
 
   var resp = await fetchWithTimeout(workerUrl + '?v=' + videoId + '&lang=ru&mode=auto', {}, 120000);
+
+  if (!resp.ok) {
+    var errText = '';
+    try { errText = await resp.text(); } catch(e) {}
+    throw new Error('Worker erreur ' + resp.status + (errText ? ': ' + errText.substring(0, 100) : ''));
+  }
+
   var data = await resp.json().catch(function() { return {}; });
 
   if (data.ok && data.text && data.text.length > 10) {
-    status.textContent = (data.source === 'whisper' ? '🎙 Transcrit via Whisper' : '📝 Sous-titres trouves');
+    var srcLabel = data.source === 'whisper' ? '🎙 Transcrit via Whisper' : '📝 Sous-titres trouvés';
+    status.textContent = srcLabel + ' (' + data.length + ' caractères)';
     return data.text;
   }
 
@@ -1498,6 +1525,9 @@ function onWordTap(e) {
   currentCtx = ctx;
 
   showWordPanel(word, ctx);
+
+  // Auto-speak the word when tapped
+  speakRussian(word);
 }
 
 function showWordPanel(word, ctx) {
@@ -1546,42 +1576,68 @@ document.getElementById('panelSpeak').addEventListener('click', function(e) {
 });
 
 function speakRussian(word) {
-  // Method 1: Web Speech API
+  if (!word) return;
+
+  // Method 1: Web Speech API with preloaded voice
   if ('speechSynthesis' in window) {
     speechSynthesis.cancel();
     var u = new SpeechSynthesisUtterance(word);
     u.lang = 'ru-RU';
     u.rate = 0.85;
 
-    // Safari needs voices to be loaded first
-    var voices = speechSynthesis.getVoices();
-    var ruVoice = voices.find(function(v) { return v.lang.startsWith('ru'); });
-    if (ruVoice) u.voice = ruVoice;
+    // Use preloaded voice if available
+    if (cachedRuVoice) {
+      u.voice = cachedRuVoice;
+    } else {
+      // Try loading voices one more time (Safari lazy-loads)
+      var voices = speechSynthesis.getVoices();
+      var ruVoice = voices.find(function(v) { return v.lang && v.lang.startsWith('ru'); });
+      if (ruVoice) {
+        u.voice = ruVoice;
+        cachedRuVoice = ruVoice;
+      }
+    }
 
+    var spoke = false;
+    u.onstart = function() { spoke = true; };
     u.onerror = function() {
-      // Fallback to Google TTS audio
-      playGoogleTTS(word);
+      if (!spoke) playTTSFallback(word);
     };
 
     speechSynthesis.speak(u);
 
-    // Safari bug: speech stops after ~15s of silence, poke it
-    var safariKeepAlive = setInterval(function() {
-      if (!speechSynthesis.speaking) { clearInterval(safariKeepAlive); return; }
-      speechSynthesis.pause();
-      speechSynthesis.resume();
-    }, 5000);
+    // Safety: if nothing happens after 500ms (no voice available), use fallback
+    setTimeout(function() {
+      if (!spoke && !speechSynthesis.speaking) {
+        speechSynthesis.cancel();
+        playTTSFallback(word);
+      }
+    }, 500);
 
     return;
   }
 
-  // Method 2: Google TTS audio
-  playGoogleTTS(word);
+  // Method 2: Audio fallback
+  playTTSFallback(word);
 }
 
-function playGoogleTTS(word) {
-  var audio = new Audio('https://translate.google.com/translate_tts?ie=UTF-8&client=tw-ob&tl=ru&q=' + encodeURIComponent(word));
-  audio.play().catch(function() {});
+function playTTSFallback(word) {
+  // Try multiple TTS sources in order
+  var sources = [
+    'https://translate.googleapis.com/translate_tts?ie=UTF-8&client=gtx&tl=ru&q=' + encodeURIComponent(word),
+    'https://translate.google.com/translate_tts?ie=UTF-8&client=tw-ob&tl=ru&q=' + encodeURIComponent(word)
+  ];
+
+  function trySource(index) {
+    if (index >= sources.length) return;
+    var audio = new Audio(sources[index]);
+    audio.volume = 1.0;
+    audio.play().catch(function() {
+      trySource(index + 1);
+    });
+  }
+
+  trySource(0);
 }
 
 // ── Translation ──
