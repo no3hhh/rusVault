@@ -229,6 +229,53 @@ body {
 .stat-saved b { color: var(--yellow); }
 .stat-known b { color: var(--green); }
 
+/* ── Page Navigation ─── */
+.page-nav {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 14px;
+  gap: 10px;
+}
+.page-btn {
+  padding: 10px 18px;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: var(--surface);
+  color: var(--text);
+  font-family: inherit;
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.15s;
+  min-width: 80px;
+  text-align: center;
+}
+.page-btn:active { transform: scale(0.96); background: var(--surface2); }
+.page-btn:disabled { opacity: 0.3; pointer-events: none; }
+.page-btn.next-btn { background: var(--accent); color: #fff; border-color: var(--accent); }
+.page-btn.next-btn:active { opacity: 0.85; }
+.page-btn.next-btn:disabled { opacity: 0.3; }
+.page-info {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 13px;
+  color: var(--muted);
+  text-align: center;
+}
+.page-progress-bar {
+  height: 3px;
+  background: var(--surface2);
+  border-radius: 2px;
+  margin-bottom: 16px;
+  overflow: hidden;
+}
+.page-progress-fill {
+  height: 100%;
+  background: var(--accent);
+  border-radius: 2px;
+  transition: width 0.3s;
+}
+
 /* ── Word tokens ─── */
 .w {
   cursor: pointer;
@@ -725,8 +772,14 @@ input[type="file"] { display: none; }
           <span class="stat-saved">🟡 Saved: <b id="countSaved">0</b></span>
           <span class="stat-known">⚪ Known: <b id="countKnown">0</b></span>
         </div>
+        <div class="page-progress-bar"><div class="page-progress-fill" id="pageProgressFill" style="width:0%"></div></div>
+        <div class="page-nav">
+          <button class="page-btn" id="btnPrevPage" disabled>← Préc</button>
+          <span class="page-info" id="pageInfo">1 / 1</span>
+          <button class="page-btn next-btn" id="btnNextPage">Suiv →</button>
+        </div>
         <div id="textBody"></div>
-        <button class="action-btn primary" id="btnFinishLesson" style="margin:16px 0;display:none;">✅ Fin de leçon — marquer les mots bleus comme connus</button>
+        <button class="action-btn primary" id="btnFinishLesson" style="margin:16px 0;display:none;">✅ Marquer les mots bleus de cette page comme connus</button>
       </div>
     </div>
 
@@ -955,15 +1008,18 @@ let settings = {
   fontSize: 18
 };
 
-// ── Preload TTS voices (must happen early, before any speak call) ──
+// ── Pagination state ──
+let pages = [];               // array of paragraph arrays: [[p1, p2], [p3, p4], ...]
+let currentPage = 0;          // current page index
+const WORDS_PER_PAGE = 120;   // ~120 words per page for ebook feel
+
+// ── Preload TTS voices ──
 let cachedRuVoice = null;
-let voicesReady = false;
 function preloadVoices() {
   if (!('speechSynthesis' in window)) return;
   var voices = speechSynthesis.getVoices();
   if (voices.length > 0) {
     cachedRuVoice = voices.find(function(v) { return v.lang && v.lang.startsWith('ru'); }) || null;
-    voicesReady = true;
   }
 }
 preloadVoices();
@@ -1238,25 +1294,14 @@ async function fetchYTSubtitles(videoId) {
     throw new Error('Configure le Worker dans Settings');
   }
 
-  // Ensure URL doesn't have trailing slash
-  workerUrl = workerUrl.replace(/\/+$/, '');
-
   var status = document.getElementById('ytStatus');
-  status.textContent = '⏳ Recherche des sous-titres russes…';
+  status.textContent = '1/2 - Recherche des sous-titres...';
 
   var resp = await fetchWithTimeout(workerUrl + '?v=' + videoId + '&lang=ru&mode=auto', {}, 120000);
-
-  if (!resp.ok) {
-    var errText = '';
-    try { errText = await resp.text(); } catch(e) {}
-    throw new Error('Worker erreur ' + resp.status + (errText ? ': ' + errText.substring(0, 100) : ''));
-  }
-
   var data = await resp.json().catch(function() { return {}; });
 
   if (data.ok && data.text && data.text.length > 10) {
-    var srcLabel = data.source === 'whisper' ? '🎙 Transcrit via Whisper' : '📝 Sous-titres trouvés';
-    status.textContent = srcLabel + ' (' + data.length + ' caractères)';
+    status.textContent = (data.source === 'whisper' ? '🎙 Transcrit via Whisper' : '📝 Sous-titres trouves');
     return data.text;
   }
 
@@ -1278,14 +1323,14 @@ function cleanTranscript(text) {
 }
 
 // ── Load text into reader ──
-async function loadText(text, title) {
+async function loadText(text, title, startPage) {
   document.getElementById('importArea').style.display = 'none';
   const rc = document.getElementById('readerContent');
   rc.classList.add('has-text');
   document.getElementById('readerLabel').textContent = title || 'Text';
   document.getElementById('btnFinishLesson').style.display = '';
 
-  renderText(text);
+  renderText(text, startPage || 0);
   updateReaderFont();
 
   // Save as lesson
@@ -1295,7 +1340,8 @@ async function loadText(text, title) {
       title: title || 'Text',
       text: text,
       createdAt: now,
-      lastOpenedAt: now
+      lastOpenedAt: now,
+      currentPage: 0
     };
     var id = await dbAdd('lessons', lesson);
     currentLessonId = id;
@@ -1313,7 +1359,7 @@ async function loadText(text, title) {
 
 function openLesson(lesson) {
   currentLessonId = lesson.id;
-  loadText(lesson.text, lesson.title);
+  loadText(lesson.text, lesson.title, lesson.currentPage || 0);
 }
 
 async function deleteLesson(id) {
@@ -1370,11 +1416,18 @@ async function renderLessonList() {
     html += '<div class="lesson-card" data-lesson-id="' + l.id + '">';
     html += '<div class="lesson-card-title">' + escHtml(l.title) + '</div>';
     html += '<div class="lesson-card-meta"><span>' + dateStr + '</span><span>' + unique.length + ' mots</span></div>';
+
+    // Show page progress if available
+    var pageLabel = '';
+    if (l.currentPage !== undefined && l.currentPage > 0) {
+      pageLabel = ' · p.' + (l.currentPage + 1);
+    }
+
     html += '<div class="lesson-card-progress">';
     html += '<span>🔵 ' + newC + '</span>';
     html += '<span>🟡 ' + savedC + '</span>';
     html += '<span>⚪ ' + knownC + '</span>';
-    html += '<span style="margin-left:auto;font-weight:600;">' + pctKnown + '%</span>';
+    html += '<span style="margin-left:auto;font-weight:600;">' + pctKnown + '%' + pageLabel + '</span>';
     html += '</div>';
     html += '<div class="lesson-card-bar"><div class="lesson-card-bar-fill" style="width:' + pctKnown + '%;background:var(--green);"></div></div>';
     html += '<div class="lesson-card-actions">';
@@ -1419,36 +1472,80 @@ document.getElementById('btnCloseText').addEventListener('click', () => {
   document.getElementById('textBody').innerHTML = '';
   document.getElementById('btnFinishLesson').style.display = 'none';
   currentLessonId = null;
+  pages = [];
+  currentPage = 0;
   renderLessonList();
 });
 
-// ── Render text with word coloring ──
-function renderText(text) {
+// ── Render text: split into pages ──
+function renderText(text, startPage) {
   const body = document.getElementById('textBody');
   body.innerHTML = '';
   body.style.fontSize = settings.fontSize + 'px';
 
   // Split into paragraphs
-  const paragraphs = text.split(/\n+/);
-  let newCount = 0, savedCount = 0, knownCount = 0;
+  const paragraphs = text.split(/\n+/).filter(function(p) { return p.trim().length > 0; });
 
-  for (const para of paragraphs) {
-    if (!para.trim()) continue;
-    const p = document.createElement('p');
+  // Build pages by word count
+  pages = [];
+  let currentPageParas = [];
+  let wordCount = 0;
+
+  for (var i = 0; i < paragraphs.length; i++) {
+    var para = paragraphs[i].trim();
+    if (!para) continue;
+    var paraWords = (para.match(RU_WORD) || []).length || para.split(/\s+/).length;
+
+    if (wordCount > 0 && wordCount + paraWords > WORDS_PER_PAGE) {
+      pages.push(currentPageParas);
+      currentPageParas = [];
+      wordCount = 0;
+    }
+    currentPageParas.push(para);
+    wordCount += paraWords;
+  }
+  if (currentPageParas.length > 0) {
+    pages.push(currentPageParas);
+  }
+
+  // If no pages, create one empty
+  if (pages.length === 0) pages = [['']];
+
+  // Show starting page
+  currentPage = startPage || 0;
+  if (currentPage >= pages.length) currentPage = pages.length - 1;
+  if (currentPage < 0) currentPage = 0;
+
+  showPage(currentPage);
+}
+
+// ── Show a specific page ──
+function showPage(pageIndex) {
+  currentPage = pageIndex;
+  var body = document.getElementById('textBody');
+  body.innerHTML = '';
+
+  var paras = pages[currentPage] || [];
+  var newCount = 0, savedCount = 0, knownCount = 0;
+
+  for (var i = 0; i < paras.length; i++) {
+    var para = paras[i];
+    var p = document.createElement('p');
     p.style.marginBottom = '14px';
 
-    const parts = para.split(RU_WORD);
-    for (const part of parts) {
+    var parts = para.split(RU_WORD);
+    for (var j = 0; j < parts.length; j++) {
+      var part = parts[j];
       if (!part) continue;
 
       if (/^[а-яА-ЯёЁ]+$/.test(part)) {
-        const lower = part.toLowerCase();
-        const span = document.createElement('span');
+        var lower = part.toLowerCase();
+        var span = document.createElement('span');
         span.className = 'w';
         span.textContent = part;
         span.dataset.w = lower;
 
-        const cached = wordCache.get(lower);
+        var cached = wordCache.get(lower);
         if (cached) {
           if (cached.status === 'known') {
             span.classList.add('w-known');
@@ -1473,12 +1570,112 @@ function renderText(text) {
     body.appendChild(p);
   }
 
+  // Update page counts (for this page only)
   document.getElementById('countNew').textContent = newCount;
   document.getElementById('countSaved').textContent = savedCount;
   document.getElementById('countKnown').textContent = knownCount;
+
+  // Update nav
+  updatePageNav();
+
+  // Scroll to top of reader
+  var view = document.getElementById('viewReader');
+  if (view) view.scrollTop = 0;
+
+  // Save position
+  savePagePosition();
 }
 
-// ── Re-color all words (after a status change) ──
+function updatePageNav() {
+  var total = pages.length;
+  document.getElementById('pageInfo').textContent = (currentPage + 1) + ' / ' + total;
+  document.getElementById('btnPrevPage').disabled = (currentPage <= 0);
+  document.getElementById('btnNextPage').disabled = (currentPage >= total - 1);
+  // Update next button text for last page
+  var nextBtn = document.getElementById('btnNextPage');
+  if (currentPage >= total - 1) {
+    nextBtn.textContent = '✓ Fin';
+  } else {
+    nextBtn.textContent = 'Suiv →';
+  }
+  // Progress bar
+  var pct = total > 1 ? ((currentPage + 1) / total * 100) : 100;
+  document.getElementById('pageProgressFill').style.width = pct + '%';
+}
+
+// ── Auto-mark blue words on current page as known ──
+async function autoMarkPageBlueWords() {
+  var blueWords = document.querySelectorAll('#textBody .w.w-new');
+  if (blueWords.length === 0) return;
+
+  var seen = {};
+  var toMark = [];
+  for (var i = 0; i < blueWords.length; i++) {
+    var w = blueWords[i].dataset.w;
+    if (!seen[w]) {
+      seen[w] = true;
+      toMark.push(w);
+    }
+  }
+
+  var now = new Date().toISOString();
+  for (var j = 0; j < toMark.length; j++) {
+    var word = toMark[j];
+    var existing = wordCache.get(word);
+    if (existing) {
+      existing.status = 'known';
+      existing.lastSeen = now;
+      await dbPut('words', existing);
+      wordCache.set(word, existing);
+    } else {
+      var entry = {
+        word: word,
+        wordLower: word,
+        translation: '',
+        status: 'known',
+        encounters: 1,
+        contexts: [],
+        createdAt: now,
+        lastSeen: now
+      };
+      var id = await dbAdd('words', entry);
+      entry.id = id;
+      wordCache.set(word, entry);
+    }
+  }
+
+  if (toMark.length > 0) {
+    showToast('✓ ' + toMark.length + ' mot' + (toMark.length > 1 ? 's' : '') + ' → connu' + (toMark.length > 1 ? 's' : ''));
+  }
+}
+
+// ── Save page position to lesson ──
+async function savePagePosition() {
+  if (!currentLessonId) return;
+  try {
+    var les = await dbGet('lessons', currentLessonId);
+    if (les) {
+      les.currentPage = currentPage;
+      les.lastOpenedAt = new Date().toISOString();
+      await dbPut('lessons', les);
+    }
+  } catch (e) {}
+}
+
+// ── Page navigation buttons ──
+document.getElementById('btnNextPage').addEventListener('click', async function() {
+  if (currentPage >= pages.length - 1) return;
+  // Auto-mark blue words on current page before turning
+  await autoMarkPageBlueWords();
+  showPage(currentPage + 1);
+});
+
+document.getElementById('btnPrevPage').addEventListener('click', function() {
+  if (currentPage <= 0) return;
+  showPage(currentPage - 1);
+});
+
+// ── Re-color all words on current page (after a status change) ──
 function recolorWords() {
   let newC = 0, savedC = 0, knownC = 0;
   document.querySelectorAll('#textBody .w').forEach(span => {
@@ -1525,8 +1722,6 @@ function onWordTap(e) {
   currentCtx = ctx;
 
   showWordPanel(word, ctx);
-
-  // Auto-speak the word when tapped
   speakRussian(word);
 }
 
@@ -1577,67 +1772,40 @@ document.getElementById('panelSpeak').addEventListener('click', function(e) {
 
 function speakRussian(word) {
   if (!word) return;
-
-  // Method 1: Web Speech API with preloaded voice
   if ('speechSynthesis' in window) {
     speechSynthesis.cancel();
     var u = new SpeechSynthesisUtterance(word);
     u.lang = 'ru-RU';
     u.rate = 0.85;
 
-    // Use preloaded voice if available
     if (cachedRuVoice) {
       u.voice = cachedRuVoice;
     } else {
-      // Try loading voices one more time (Safari lazy-loads)
       var voices = speechSynthesis.getVoices();
       var ruVoice = voices.find(function(v) { return v.lang && v.lang.startsWith('ru'); });
-      if (ruVoice) {
-        u.voice = ruVoice;
-        cachedRuVoice = ruVoice;
-      }
+      if (ruVoice) { u.voice = ruVoice; cachedRuVoice = ruVoice; }
     }
 
     var spoke = false;
     u.onstart = function() { spoke = true; };
-    u.onerror = function() {
-      if (!spoke) playTTSFallback(word);
-    };
-
+    u.onerror = function() { if (!spoke) playTTSFallback(word); };
     speechSynthesis.speak(u);
 
-    // Safety: if nothing happens after 500ms (no voice available), use fallback
     setTimeout(function() {
       if (!spoke && !speechSynthesis.speaking) {
         speechSynthesis.cancel();
         playTTSFallback(word);
       }
     }, 500);
-
     return;
   }
-
-  // Method 2: Audio fallback
   playTTSFallback(word);
 }
 
 function playTTSFallback(word) {
-  // Try multiple TTS sources in order
-  var sources = [
-    'https://translate.googleapis.com/translate_tts?ie=UTF-8&client=gtx&tl=ru&q=' + encodeURIComponent(word),
-    'https://translate.google.com/translate_tts?ie=UTF-8&client=tw-ob&tl=ru&q=' + encodeURIComponent(word)
-  ];
-
-  function trySource(index) {
-    if (index >= sources.length) return;
-    var audio = new Audio(sources[index]);
-    audio.volume = 1.0;
-    audio.play().catch(function() {
-      trySource(index + 1);
-    });
-  }
-
-  trySource(0);
+  var audio = new Audio('https://translate.googleapis.com/translate_tts?ie=UTF-8&client=gtx&tl=ru&q=' + encodeURIComponent(word));
+  audio.volume = 1.0;
+  audio.play().catch(function() {});
 }
 
 // ── Translation ──
@@ -1820,57 +1988,10 @@ async function saveWord(status) {
   recolorWords();
 }
 
-// ── Finish lesson: mark all untouched blue words as known ──
+// ── Finish lesson: mark all untouched blue words on current page as known ──
 document.getElementById('btnFinishLesson').addEventListener('click', async function() {
-  var newWords = document.querySelectorAll('#textBody .w.w-new');
-  if (newWords.length === 0) {
-    showToast('Aucun mot bleu restant !');
-    return;
-  }
-
-  // Collect unique new words
-  var seen = {};
-  var toMark = [];
-  for (var i = 0; i < newWords.length; i++) {
-    var w = newWords[i].dataset.w;
-    if (!seen[w]) {
-      seen[w] = true;
-      toMark.push(w);
-    }
-  }
-
-  var now = new Date().toISOString();
-  var count = 0;
-
-  for (var j = 0; j < toMark.length; j++) {
-    var word = toMark[j];
-    var existing = wordCache.get(word);
-
-    if (existing) {
-      existing.status = 'known';
-      existing.lastSeen = now;
-      await dbPut('words', existing);
-      wordCache.set(word, existing);
-    } else {
-      var entry = {
-        word: word,
-        wordLower: word,
-        translation: '',
-        status: 'known',
-        encounters: 1,
-        contexts: [],
-        createdAt: now,
-        lastSeen: now
-      };
-      var id = await dbAdd('words', entry);
-      entry.id = id;
-      wordCache.set(word, entry);
-    }
-    count++;
-  }
-
+  await autoMarkPageBlueWords();
   recolorWords();
-  showToast('✅ ' + count + ' mots marqués comme connus !');
 });
 
 // ══════════════════════════════════════════
@@ -2137,11 +2258,7 @@ function showToast(msg) {
 //  UTILITY
 // ══════════════════════════════════════════
 
-function escHtml(s) {
-  const d = document.createElement('div');
-  d.textContent = s;
-  return d.innerHTML;
-}
+// escHtml defined above
 
 // ══════════════════════════════════════════
 //  INIT
