@@ -898,14 +898,6 @@ input[type="file"] { display: none; }
         </div>
       </div>
 
-      <div class="section-title">YouTube</div>
-      <div style="font-size:12px;color:var(--muted);margin-bottom:8px;line-height:1.5;">
-        Pour importer les sous-titres YouTube automatiquement, tu as besoin d'un Worker Cloudflare (gratuit).
-        <a href="https://workers.cloudflare.com" target="_blank" style="color:var(--accent);">Créer un Worker →</a>
-      </div>
-      <input type="url" id="workerUrlInput" placeholder="https://rusvault-yt.TONNOM.workers.dev" style="margin-bottom:8px;">
-      <button class="action-btn secondary" id="btnSaveWorker">💾 Sauvegarder l'URL du Worker</button>
-
       <div class="section-title">Data</div>
       <button class="action-btn secondary" id="btnExport">📤 Export Database (JSON)</button>
       <button class="action-btn secondary" id="btnImport">📥 Import Database (JSON)</button>
@@ -979,14 +971,14 @@ input[type="file"] { display: none; }
     <h2>🎥 YouTube → RusVault</h2>
 
     <div style="margin-bottom:14px;">
-      <div style="font-size:14px;font-weight:600;margin-bottom:6px;">Option 1 — URL automatique</div>
+      <div style="font-size:14px;font-weight:600;margin-bottom:6px;">Option 1 — Colle l'URL</div>
       <input type="url" id="ytUrl" placeholder="https://youtube.com/watch?v=…">
       <button class="action-btn primary" id="ytSubmitUrl" style="margin-bottom:0;">🔍 Chercher les sous-titres</button>
       <div id="ytStatus" style="font-size:12px;color:var(--muted);text-align:center;min-height:18px;margin-top:6px;"></div>
     </div>
 
     <div style="background:var(--surface2);border-radius:10px;padding:10px 12px;margin-bottom:10px;line-height:1.5;">
-      <div style="font-size:13px;font-weight:600;margin-bottom:4px;">Option 2 — Copier-coller</div>
+      <div style="font-size:13px;font-weight:600;margin-bottom:4px;">Option 2 — Copier-coller manuel</div>
       <div style="font-size:12px;color:var(--muted);">
         YouTube → <b>⋯</b> sous la vidéo → <b>Afficher la transcription</b> → Copier tout → Coller ici ↓
       </div>
@@ -1052,10 +1044,9 @@ let settings = {
 };
 
 // ── Ebook pagination state ──
-let allParagraphs = [];       // all paragraphs from current text
-let pages = [];               // array of arrays: each sub-array = paragraph indices for that page
+let allChunks = [];           // text split into sentences/small chunks
+let pages = [];               // array of arrays: each sub-array = chunk indices for that page
 let currentPage = 0;
-const WORDS_PER_PAGE = 100;
 
 // ── Preload TTS voices ──
 let cachedRuVoice = null;
@@ -1237,8 +1228,11 @@ function updateReaderFont() {
   var el = document.getElementById('textBody');
   if (el) {
     el.style.fontSize = settings.fontSize + 'px';
-    // If in ebook mode, rebuild pages with new font size and re-show current page
-    if (pages.length > 0 && allParagraphs.length > 0) {
+    // Re-paginate with new font size if in ebook mode
+    if (allChunks.length > 0) {
+      var lessonText = allChunks.join('\n');
+      buildPages(lessonText);
+      if (currentPage >= pages.length) currentPage = pages.length - 1;
       showPage(currentPage);
     }
   }
@@ -1289,14 +1283,9 @@ document.getElementById('ytSubmitUrl').addEventListener('click', async function(
   var videoId = extractYTId(url);
   if (!videoId) { showToast('❌ URL invalide'); return; }
 
-  status.textContent = '⏳ Recherche des sous-titres…';
+  status.textContent = '⏳ Recherche des sous-titres russes…';
 
   try {
-    var workerUrl = localStorage.getItem('rusvault_worker_url');
-    if (!workerUrl) {
-      status.innerHTML = '⚠️ Configure ton Worker dans <b>Settings</b> d\'abord.';
-      return;
-    }
     var subs = await fetchYTSubtitles(videoId);
     if (subs && subs.length > 20) {
       var title = document.getElementById('ytTitle').value.trim() || 'YouTube: ' + videoId;
@@ -1308,7 +1297,7 @@ document.getElementById('ytSubmitUrl').addEventListener('click', async function(
       status.textContent = '';
       showToast('✓ Sous-titres importés !');
     } else {
-      status.textContent = '⚠️ Pas trouvé. Utilise le copier-coller ci-dessous.';
+      status.textContent = '⚠️ Pas de sous-titres russes trouvés. Essaie le copier-coller.';
     }
   } catch (err) {
     console.error('[RusVault YT]', err);
@@ -1338,25 +1327,125 @@ function extractYTId(url) {
 }
 
 async function fetchYTSubtitles(videoId) {
-  // Use Cloudflare Worker as proxy (server-side = no CORS, no bot block)
-  var workerUrl = localStorage.getItem('rusvault_worker_url');
-  if (!workerUrl) {
-    throw new Error('Configure le Worker dans Settings');
-  }
-
   var status = document.getElementById('ytStatus');
-  status.textContent = '1/2 - Recherche des sous-titres...';
 
-  var resp = await fetchWithTimeout(workerUrl + '?v=' + videoId + '&lang=ru&mode=auto', {}, 120000);
-  var data = await resp.json().catch(function() { return {}; });
+  // List of public Invidious instances with CORS enabled
+  var instances = [
+    'https://inv.nadeko.net',
+    'https://invidious.nerdvpn.de',
+    'https://invidious.jing.rocks',
+    'https://invidious.privacyredirect.com',
+    'https://invidious.protokolla.fi',
+    'https://iv.datura.network',
+    'https://invidious.perennialte.ch',
+    'https://yt.drgnz.club'
+  ];
 
-  if (data.ok && data.text && data.text.length > 10) {
-    status.textContent = (data.source === 'whisper' ? '🎙 Transcrit via Whisper' : '📝 Sous-titres trouves');
-    return data.text;
+  // Try fetching the instance list dynamically for freshness
+  try {
+    var listResp = await fetchWithTimeout('https://api.invidious.io/instances.json?sort_by=health', {}, 5000);
+    if (listResp.ok) {
+      var allInstances = await listResp.json();
+      var fresh = allInstances
+        .filter(function(entry) {
+          var info = entry[1];
+          return info && info.type === 'https' && info.api === true && info.cors === true;
+        })
+        .map(function(entry) { return entry[1].uri; })
+        .slice(0, 12);
+      if (fresh.length >= 3) instances = fresh;
+    }
+  } catch (e) { /* use hardcoded fallback */ }
+
+  // Shuffle to spread load
+  for (var s = instances.length - 1; s > 0; s--) {
+    var r = Math.floor(Math.random() * (s + 1));
+    var tmp = instances[s]; instances[s] = instances[r]; instances[r] = tmp;
   }
 
-  if (data.error) throw new Error(data.error);
-  return null;
+  for (var i = 0; i < instances.length; i++) {
+    var base = instances[i];
+    status.textContent = '🔍 Tentative ' + (i + 1) + '/' + instances.length + '…';
+
+    try {
+      // Step 1: List available captions
+      var listUrl = base + '/api/v1/captions/' + videoId;
+      var listResp = await fetchWithTimeout(listUrl, {}, 6000);
+      if (!listResp.ok) continue;
+      var listData = await listResp.json();
+      var captions = listData.captions || [];
+
+      // Find Russian caption
+      var target = null;
+      for (var c = 0; c < captions.length; c++) {
+        var cap = captions[c];
+        var lc = (cap.language_code || cap.languageCode || '').toLowerCase();
+        if (lc === 'ru' || lc.startsWith('ru-')) {
+          target = cap;
+          break;
+        }
+      }
+
+      if (!target) {
+        // Try auto-generated (label often contains "auto" or "автоматически")
+        for (var c2 = 0; c2 < captions.length; c2++) {
+          var label = (captions[c2].label || '').toLowerCase();
+          if (label.indexOf('русск') !== -1 || label.indexOf('russian') !== -1) {
+            target = captions[c2];
+            break;
+          }
+        }
+      }
+
+      if (!target) continue;
+
+      // Step 2: Fetch the actual subtitle text
+      var subUrl = base + target.url;
+      // Force VTT format
+      if (subUrl.indexOf('?') === -1) subUrl += '?format=vtt';
+      else subUrl += '&format=vtt';
+
+      var subResp = await fetchWithTimeout(subUrl, {}, 8000);
+      if (!subResp.ok) continue;
+      var subText = await subResp.text();
+
+      // Parse VTT to plain text
+      var parsed = parseVTT(subText);
+      if (parsed && parsed.length > 20) {
+        status.textContent = '📝 Sous-titres trouvés !';
+        return parsed;
+      }
+    } catch (e) {
+      continue;
+    }
+  }
+
+  throw new Error('Aucune instance n\'a pu récupérer les sous-titres');
+}
+
+// Parse VTT subtitle format to plain text
+function parseVTT(vtt) {
+  return vtt
+    .split('\n')
+    .filter(function(line) {
+      // Remove timestamps, headers, empty lines
+      if (!line.trim()) return false;
+      if (line.indexOf('-->') !== -1) return false;
+      if (line.match(/^WEBVTT/)) return false;
+      if (line.match(/^Kind:|^Language:/)) return false;
+      if (line.match(/^\d+$/)) return false;
+      return true;
+    })
+    .map(function(line) {
+      // Remove VTT tags like <c>, </c>, timestamps in cues
+      return line.replace(/<[^>]+>/g, '').replace(/&nbsp;/g, ' ').trim();
+    })
+    .filter(function(line) { return line.length > 0; })
+    // Remove consecutive duplicate lines (common in auto-subs)
+    .filter(function(line, idx, arr) { return idx === 0 || line !== arr[idx - 1]; })
+    .join(' ')
+    .replace(/\s{2,}/g, ' ')
+    .trim();
 }
 
 function cleanTranscript(text) {
@@ -1518,32 +1607,81 @@ document.getElementById('btnCloseText').addEventListener('click', () => {
   document.getElementById('readerContent').classList.remove('has-text');
   document.getElementById('textBody').innerHTML = '';
   currentLessonId = null;
-  allParagraphs = [];
+  allChunks = [];
   pages = [];
   currentPage = 0;
   renderLessonList();
 });
 
 // ── Build pages from text ──
-function buildPages(text) {
-  allParagraphs = text.split(/\n+/).filter(function(p) { return p.trim().length > 0; });
-  pages = [];
-  var currentPageParas = [];
-  var wordCount = 0;
-
-  for (var i = 0; i < allParagraphs.length; i++) {
-    var para = allParagraphs[i].trim();
-    var paraWordCount = (para.match(RU_WORD) || []).length || para.split(/\s+/).length;
-
-    if (wordCount > 0 && wordCount + paraWordCount > WORDS_PER_PAGE) {
-      pages.push(currentPageParas);
-      currentPageParas = [];
-      wordCount = 0;
+// ── Split text into fine-grained chunks (sentences) ──
+function splitIntoChunks(text) {
+  var paragraphs = text.split(/\n+/).filter(function(p) { return p.trim().length > 0; });
+  var chunks = [];
+  for (var i = 0; i < paragraphs.length; i++) {
+    var para = paragraphs[i].trim();
+    // Split long paragraphs into sentences (keep punctuation with sentence)
+    var sentences = para.match(/[^.!?…]+[.!?…]+[\s]*/g);
+    if (sentences && sentences.length > 1) {
+      for (var s = 0; s < sentences.length; s++) {
+        var sent = sentences[s].trim();
+        if (sent.length > 0) chunks.push(sent);
+      }
+    } else {
+      // Short paragraph or no sentence-ending punctuation — keep as-is
+      chunks.push(para);
     }
-    currentPageParas.push(i);
-    wordCount += paraWordCount;
   }
-  if (currentPageParas.length > 0) pages.push(currentPageParas);
+  return chunks;
+}
+
+// ── Build pages dynamically using real overflow detection ──
+function buildPages(text) {
+  allChunks = splitIntoChunks(text);
+  pages = [];
+
+  if (allChunks.length === 0) {
+    pages = [[0]];
+    return;
+  }
+
+  var body = document.getElementById('textBody');
+  body.style.fontSize = settings.fontSize + 'px';
+  body.style.lineHeight = '1.75';
+
+  var chunkIndex = 0;
+  while (chunkIndex < allChunks.length) {
+    var pageChunks = [];
+    body.innerHTML = '';
+
+    // Add chunks one by one until it overflows
+    while (chunkIndex < allChunks.length) {
+      // Render test paragraph
+      var testP = document.createElement('p');
+      testP.textContent = allChunks[chunkIndex];
+      body.appendChild(testP);
+
+      // Check overflow
+      if (pageChunks.length > 0 && body.scrollHeight > body.clientHeight) {
+        // This chunk caused overflow — remove it, belongs to next page
+        body.removeChild(testP);
+        break;
+      }
+
+      pageChunks.push(chunkIndex);
+      chunkIndex++;
+    }
+
+    // Safety: if one single chunk is too big, still put it on a page
+    if (pageChunks.length === 0 && chunkIndex < allChunks.length) {
+      pageChunks.push(chunkIndex);
+      chunkIndex++;
+    }
+
+    pages.push(pageChunks);
+  }
+
+  body.innerHTML = '';
   if (pages.length === 0) pages = [[0]];
 }
 
@@ -1561,16 +1699,16 @@ function showPage(pageIndex) {
     body.style.fontSize = settings.fontSize + 'px';
     body.style.lineHeight = '1.75';
 
-    var paraIndices = pages[currentPage] || [];
+    var chunkIndices = pages[currentPage] || [];
     var newCount = 0, savedCount = 0, knownCount = 0;
 
-    for (var i = 0; i < paraIndices.length; i++) {
-      var paraText = allParagraphs[paraIndices[i]] || '';
-      if (!paraText.trim()) continue;
+    for (var i = 0; i < chunkIndices.length; i++) {
+      var chunkText = allChunks[chunkIndices[i]] || '';
+      if (!chunkText.trim()) continue;
 
       var p = document.createElement('p');
 
-      var parts = paraText.split(RU_WORD);
+      var parts = chunkText.split(RU_WORD);
       for (var j = 0; j < parts.length; j++) {
         var part = parts[j];
         if (!part) continue;
@@ -1619,8 +1757,21 @@ function updatePageNav() {
   document.getElementById('btnPrevPage').disabled = (currentPage <= 0);
 
   var nextBtn = document.getElementById('btnNextPage');
-  nextBtn.disabled = (currentPage >= total - 1);
-  nextBtn.textContent = (currentPage >= total - 1) ? '✓ Fin' : 'Suiv →';
+  if (currentPage >= total - 1) {
+    nextBtn.textContent = '✅ Fin';
+    nextBtn.disabled = false;  // Keep clickable to finish lesson
+    nextBtn.classList.remove('next-btn');
+    nextBtn.style.background = 'var(--green)';
+    nextBtn.style.color = '#fff';
+    nextBtn.style.borderColor = 'var(--green)';
+  } else {
+    nextBtn.textContent = 'Suiv →';
+    nextBtn.disabled = false;
+    nextBtn.classList.add('next-btn');
+    nextBtn.style.background = '';
+    nextBtn.style.color = '';
+    nextBtn.style.borderColor = '';
+  }
 
   var pct = total > 1 ? ((currentPage + 1) / total * 100) : 100;
   document.getElementById('pageProgressFill').style.width = pct + '%';
@@ -1696,9 +1847,26 @@ async function savePagePosition() {
 
 // ── Page navigation ──
 document.getElementById('btnNextPage').addEventListener('click', async function() {
-  if (currentPage >= pages.length - 1) return;
   var count = await autoMarkPageBlueWords();
   if (count > 0) showToast('✓ ' + count + ' mot' + (count > 1 ? 's' : '') + ' → connus');
+
+  if (currentPage >= pages.length - 1) {
+    // Last page — finish lesson
+    showToast('🎉 Leçon terminée !');
+    setTimeout(function() {
+      document.getElementById('importArea').style.display = '';
+      document.getElementById('readerContent').classList.remove('has-text');
+      document.getElementById('textBody').innerHTML = '';
+      currentLessonId = null;
+      allChunks = [];
+      pages = [];
+      currentPage = 0;
+      renderLessonList();
+      renderVocabList();
+    }, 800);
+    return;
+  }
+
   showPage(currentPage + 1);
 });
 
@@ -2334,28 +2502,6 @@ document.getElementById('btnResetSW').addEventListener('click', async function()
     showToast('Erreur: ' + e.message);
   }
 });
-
-// Worker URL
-(function() {
-  var input = document.getElementById('workerUrlInput');
-  var saved = localStorage.getItem('rusvault_worker_url') || '';
-  if (saved) input.value = saved;
-
-  document.getElementById('btnSaveWorker').addEventListener('click', function() {
-    var url = input.value.trim();
-    if (url && !url.startsWith('https://')) {
-      showToast('❌ L\'URL doit commencer par https://');
-      return;
-    }
-    if (url) {
-      localStorage.setItem('rusvault_worker_url', url);
-      showToast('✓ URL du Worker sauvegardée !');
-    } else {
-      localStorage.removeItem('rusvault_worker_url');
-      showToast('URL du Worker supprimée');
-    }
-  });
-})();
 
 })();
 </script>
