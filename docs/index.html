@@ -801,12 +801,13 @@ input[type="file"] { display: none; }
 
 /* Flashcard session */
 .fc-session {
-  display: none; position: absolute; inset: 0; z-index: 60; background: var(--bg);
+  display: none; position: fixed; top: 0; left: 0; right: 0; bottom: 0; z-index: 200; background: var(--bg);
   flex-direction: column; padding: 0;
 }
 .fc-session.active { display: flex; }
 .fc-session-header {
   display: flex; align-items: center; justify-content: space-between; padding: 12px 16px;
+  padding-top: calc(12px + var(--safe-top));
   border-bottom: 1px solid var(--border); flex-shrink: 0;
 }
 .fc-progress-text { font-family: 'JetBrains Mono'; font-size: 13px; color: var(--muted); }
@@ -930,8 +931,10 @@ input[type="file"] { display: none; }
           <div class="fc-option-group">
             <div class="fc-option-label">📚 Source</div>
             <div class="fc-option-row" id="fcLessonChips">
-              <button class="fc-chip active" data-lesson="all">Tout le vocab</button>
+              <button class="fc-chip active" data-lesson="all">Tout</button>
+              <button class="fc-chip" data-lesson="saved">Sauvés</button>
               <button class="fc-chip" data-lesson="due">À réviser</button>
+              <button class="fc-chip" data-lesson="known">Connus</button>
             </div>
           </div>
           <div class="fc-option-group">
@@ -948,28 +951,6 @@ input[type="file"] { display: none; }
         </div>
       </div>
 
-      <!-- FLASHCARD SESSION (fullscreen overlay inside vocab) -->
-      <div class="fc-session" id="fcSession">
-        <div class="fc-session-header">
-          <span class="fc-progress-text" id="fcProgressText">0 / 0</span>
-          <button class="fc-close" id="fcCloseBtn">✕</button>
-        </div>
-        <div class="fc-progress-bar"><div class="fc-progress-fill" id="fcProgressFill" style="width:0%"></div></div>
-        <div class="fc-card-area" id="fcCardArea">
-          <div class="fc-card" id="fcCard">
-            <div class="fc-card-word" id="fcWord">—</div>
-            <button class="fc-speak-btn" id="fcSpeak">🔊</button>
-            <div class="fc-card-hint" id="fcHint">Tap pour révéler</div>
-            <div class="fc-card-answer" id="fcAnswer" style="display:none;">—</div>
-            <div class="fc-card-ctx" id="fcCtx" style="display:none;"></div>
-          </div>
-        </div>
-        <div class="fc-buttons" id="fcButtons" style="display:none;">
-          <button class="fc-btn fc-btn-again" data-grade="0">Oublié<span>&lt;1m</span></button>
-          <button class="fc-btn fc-btn-hard" data-grade="1">Difficile<span id="fcHardInt">1j</span></button>
-          <button class="fc-btn fc-btn-good" data-grade="2">Bien<span id="fcGoodInt">3j</span></button>
-          <button class="fc-btn fc-btn-easy" data-grade="3">Facile<span id="fcEasyInt">7j</span></button>
-        </div>
       </div>
     </div>
 
@@ -1068,6 +1049,30 @@ input[type="file"] { display: none; }
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 1 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 1 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 1 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 1 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
       Settings
     </button>
+  </div>
+</div>
+
+<!-- ══ Flashcard Session (fullscreen overlay) ══ -->
+<div class="fc-session" id="fcSession">
+  <div class="fc-session-header">
+    <span class="fc-progress-text" id="fcProgressText">0 / 0</span>
+    <button class="fc-close" id="fcCloseBtn">✕</button>
+  </div>
+  <div class="fc-progress-bar"><div class="fc-progress-fill" id="fcProgressFill" style="width:0%"></div></div>
+  <div class="fc-card-area" id="fcCardArea">
+    <div class="fc-card" id="fcCard">
+      <div class="fc-card-word" id="fcWord">—</div>
+      <button class="fc-speak-btn" id="fcSpeak">🔊</button>
+      <div class="fc-card-hint" id="fcHint">Tap pour révéler</div>
+      <div class="fc-card-answer" id="fcAnswer" style="display:none;">—</div>
+      <div class="fc-card-ctx" id="fcCtx" style="display:none;"></div>
+    </div>
+  </div>
+  <div class="fc-buttons" id="fcButtons" style="display:none;">
+    <button class="fc-btn fc-btn-again" data-grade="0">Oublié<span>&lt;1m</span></button>
+    <button class="fc-btn fc-btn-hard" data-grade="1">Difficile<span id="fcHardInt">1j</span></button>
+    <button class="fc-btn fc-btn-good" data-grade="2">Bien<span id="fcGoodInt">3j</span></button>
+    <button class="fc-btn fc-btn-easy" data-grade="3">Facile<span id="fcEasyInt">7j</span></button>
   </div>
 </div>
 
@@ -2347,7 +2352,7 @@ async function fetchTranslation(word, sentence) {
 }
 
 // ── Save / Known / Ignore ──
-document.getElementById('panelSave').addEventListener('click', () => saveWord('new'));
+document.getElementById('panelSave').addEventListener('click', () => saveWord('saved'));
 document.getElementById('panelKnown').addEventListener('click', () => saveWord('known'));
 document.getElementById('panelIgnore').addEventListener('click', () => saveWord('ignored'));
 
@@ -2747,14 +2752,24 @@ async function getFcCandidateWords() {
   var candidates = [];
 
   if (lessonFilter === 'all') {
+    // All words that have a translation (saved, learning, known — not ignored)
+    candidates = allWords.filter(function(w) {
+      return w.status !== 'ignored' && w.translation;
+    });
+  } else if (lessonFilter === 'saved') {
     candidates = allWords.filter(function(w) {
       return w.status === 'saved' || w.status === 'learning';
+    });
+  } else if (lessonFilter === 'known') {
+    candidates = allWords.filter(function(w) {
+      return w.status === 'known' && w.translation;
     });
   } else if (lessonFilter === 'due') {
     var now = Date.now();
     candidates = allWords.filter(function(w) {
-      if (w.status !== 'saved' && w.status !== 'learning') return false;
-      if (!w.nextReview) return true;
+      if (w.status === 'ignored') return false;
+      if (!w.translation) return false;
+      if (!w.nextReview) return (w.status === 'saved' || w.status === 'learning');
       return new Date(w.nextReview).getTime() <= now;
     });
   } else {
@@ -2768,7 +2783,7 @@ async function getFcCandidateWords() {
         lessonWords[matches[m].toLowerCase()] = true;
       }
       candidates = allWords.filter(function(w) {
-        return lessonWords[w.wordLower || w.word] && (w.status === 'saved' || w.status === 'learning');
+        return lessonWords[w.wordLower || w.word] && w.status !== 'ignored' && w.translation;
       });
     }
   }
@@ -2783,7 +2798,13 @@ function updateFcWordCount() {
     var total = candidates.length;
     var actual = maxCount === 'all' ? total : Math.min(parseInt(maxCount), total);
 
-    document.getElementById('fcWordCount').textContent = actual + ' carte' + (actual > 1 ? 's' : '') + ' disponible' + (actual > 1 ? 's' : '') + ' sur ' + total;
+    var msg = '';
+    if (total === 0) {
+      msg = '⚠️ Aucun mot disponible. Sauvegarde des mots en lisant pour les réviser ici !';
+    } else {
+      msg = actual + ' carte' + (actual > 1 ? 's' : '') + ' disponible' + (actual > 1 ? 's' : '') + ' sur ' + total;
+    }
+    document.getElementById('fcWordCount').textContent = msg;
     document.getElementById('fcStartBtn').disabled = (actual === 0);
   });
 }
