@@ -5,11 +5,11 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover, user-scalable=no">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-<meta name="apple-mobile-web-app-title" content="RusVault">
+<meta name="apple-mobile-web-app-title" content="LangVault">
 <meta name="theme-color" content="#0a0a14">
 <link rel="manifest" href="manifest.json">
 <link rel="apple-touch-icon" href="icon-192.png">
-<title>RusVault</title>
+<title>LangVault</title>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;600&family=Outfit:wght@300;400;600;800&display=swap" rel="stylesheet">
@@ -89,9 +89,69 @@ body {
   font-weight: 800;
   color: var(--accent);
   letter-spacing: -0.5px;
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
 }
 .logo b { color: var(--green); }
+.logo:active { opacity: 0.7; }
 .header-actions { display: flex; gap: 8px; }
+
+/* ── Home / Language Select ─── */
+.home-view {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 40px 20px;
+  text-align: center;
+  min-height: 100%;
+}
+.home-hero { font-size: 40px; margin-bottom: 8px; }
+.home-title {
+  font-size: 28px;
+  font-weight: 800;
+  margin-bottom: 4px;
+  color: var(--text);
+}
+.home-title b { color: var(--accent); }
+.home-title span { color: var(--green); }
+.home-sub {
+  font-size: 14px;
+  color: var(--muted);
+  margin-bottom: 32px;
+  max-width: 280px;
+  line-height: 1.5;
+}
+.lang-cards {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  width: 100%;
+  max-width: 320px;
+}
+.lang-card {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding: 18px 20px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 16px;
+  cursor: pointer;
+  transition: all 0.15s;
+  text-align: left;
+  font-family: inherit;
+  color: var(--text);
+  width: 100%;
+  -webkit-tap-highlight-color: transparent;
+}
+.lang-card:active { transform: scale(0.97); }
+.lang-card:hover { border-color: var(--accent); background: var(--accent-dim); }
+.lang-card-flag { font-size: 32px; flex-shrink: 0; }
+.lang-card-info { flex: 1; }
+.lang-card-name { font-size: 16px; font-weight: 700; }
+.lang-card-desc { font-size: 12px; color: var(--muted); margin-top: 2px; }
+.lang-card-arrow { color: var(--muted); font-size: 18px; }
 .icon-btn {
   width: 36px; height: 36px;
   border: none; border-radius: 10px;
@@ -132,6 +192,14 @@ body {
   padding-bottom: var(--safe-bottom);
   flex-shrink: 0;
   z-index: 50;
+  transition: transform 0.25s, opacity 0.25s;
+}
+.tab-bar.hidden {
+  transform: translateY(100%);
+  opacity: 0;
+  pointer-events: none;
+  position: absolute;
+  bottom: 0; left: 0; right: 0;
 }
 .tab {
   flex: 1;
@@ -857,7 +925,7 @@ input[type="file"] { display: none; }
 <div class="app">
   <!-- ══ Header ══ -->
   <div class="header">
-    <div class="logo">Rus<b>Vault</b></div>
+    <div class="logo" id="logoBtn"><span id="logoText">Lang</span><b>Vault</b></div>
     <div class="header-actions">
       <button class="icon-btn" id="btnTheme" title="Toggle theme">◑</button>
     </div>
@@ -866,10 +934,45 @@ input[type="file"] { display: none; }
   <!-- ══ Views ══ -->
   <div class="views">
 
+    <!-- ── HOME ── -->
+    <div class="view active" id="viewHome">
+      <div class="home-view">
+        <div class="home-hero">📚</div>
+        <div class="home-title"><b>Lang</b><span>Vault</span></div>
+        <div class="home-sub">Apprends du vocabulaire en lisant.<br>Choisis ta langue cible :</div>
+        <div class="lang-cards">
+          <button class="lang-card" data-lang="ru">
+            <span class="lang-card-flag">🇷🇺</span>
+            <div class="lang-card-info">
+              <div class="lang-card-name">Russe</div>
+              <div class="lang-card-desc">Apprendre le russe par la lecture</div>
+            </div>
+            <span class="lang-card-arrow">›</span>
+          </button>
+          <button class="lang-card" data-lang="en">
+            <span class="lang-card-flag">🇬🇧</span>
+            <div class="lang-card-info">
+              <div class="lang-card-name">Anglais</div>
+              <div class="lang-card-desc">Improve your English reading</div>
+            </div>
+            <span class="lang-card-arrow">›</span>
+          </button>
+          <button class="lang-card" data-lang="fr">
+            <span class="lang-card-flag">🇫🇷</span>
+            <div class="lang-card-info">
+              <div class="lang-card-name">Français</div>
+              <div class="lang-card-desc">Enrichir son vocabulaire français</div>
+            </div>
+            <span class="lang-card-arrow">›</span>
+          </button>
+        </div>
+      </div>
+    </div>
+
     <!-- ── READER ── -->
-    <div class="view active" id="viewReader">
+    <div class="view" id="viewReader">
       <div id="importArea" class="import-area">
-        <h2>Import Russian text</h2>
+        <h2 id="importHeading">Import text</h2>
         <div class="import-btns">
           <button class="import-btn" id="btnPaste"><span class="em">📄</span> Paste text</button>
           <button class="import-btn" id="btnFile"><span class="em">📂</span> .txt file</button>
@@ -1025,15 +1128,15 @@ input[type="file"] { display: none; }
       <button class="action-btn secondary" id="btnResetSW" style="margin-top:4px;">🔄 Reset Service Worker (si bugs)</button>
 
       <div style="margin-top:24px;text-align:center;color:var(--muted);font-size:12px;">
-        RusVault PWA v1.0<br>
+        LangVault PWA v2.0<br>
         Offline-first · No cloud · Your data stays local
       </div>
     </div>
   </div>
 
   <!-- ══ Tab Bar ══ -->
-  <div class="tab-bar">
-    <button class="tab active" data-view="viewReader">
+  <div class="tab-bar hidden">
+    <button class="tab" data-view="viewReader">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2z"/><path d="M22 3h-6a4 4 0 0 0-4 4v14a3 3 0 0 1 3-3h7z"/></svg>
       Read
     </button>
@@ -1101,7 +1204,7 @@ input[type="file"] { display: none; }
 <div class="modal-overlay" id="pasteModal">
   <div class="modal">
     <h2>📄 Paste Russian text</h2>
-    <textarea id="pasteInput" placeholder="Вставьте русский текст сюда…"></textarea>
+    <textarea id="pasteInput" placeholder="Collez votre texte ici…"></textarea>
     <input type="text" id="pasteTitle" placeholder="Title (optional)">
     <button class="action-btn primary" id="pasteSubmit">Open Text</button>
     <button class="action-btn secondary" style="margin-top:8px" onclick="closeModal('pasteModal')">Cancel</button>
@@ -1111,7 +1214,7 @@ input[type="file"] { display: none; }
 <!-- ══ YouTube Modal ══ -->
 <div class="modal-overlay" id="ytModal">
   <div class="modal">
-    <h2>🎥 YouTube → RusVault</h2>
+    <h2>🎥 YouTube → LangVault</h2>
 
     <div style="margin-bottom:14px;">
       <div style="font-size:14px;font-weight:600;margin-bottom:6px;">Option 1 — Colle l'URL</div>
@@ -1154,16 +1257,58 @@ input[type="file"] { display: none; }
 
 <script>
 /* ══════════════════════════════════════════════════════════════
-   RUSVAULT PWA — Core Application Logic
+   LANGVAULT PWA — Multi-language vocabulary learning
    IndexedDB + Offline-first + LingQ-style reader
    ══════════════════════════════════════════════════════════════ */
 
 (function() {
 'use strict';
 
-// ── Constants ──
-const RU_WORD = /([а-яА-ЯёЁ]+)/g;
-const RU_TEST = /[а-яА-ЯёЁ]/;
+// ── Language Config ──
+var LANG_CONFIG = {
+  ru: {
+    flag: '🇷🇺',
+    name: 'Russe',
+    wordRegex: /([а-яА-ЯёЁ]+)/g,
+    wordTest: /[а-яА-ЯёЁ]/,
+    voicePrefix: 'ru',
+    ttsLang: 'ru-RU',
+    translateFrom: 'ru',
+    translateTo: 'fr',
+    importLabel: 'Importer un texte russe',
+    dbName: 'rusvault'
+  },
+  en: {
+    flag: '🇬🇧',
+    name: 'Anglais',
+    wordRegex: /([a-zA-Z'-]+)/g,
+    wordTest: /[a-zA-Z]/,
+    voicePrefix: 'en',
+    ttsLang: 'en-US',
+    translateFrom: 'en',
+    translateTo: 'fr',
+    importLabel: 'Import an English text',
+    dbName: 'langvault_en'
+  },
+  fr: {
+    flag: '🇫🇷',
+    name: 'Français',
+    wordRegex: /([a-zA-ZàâäéèêëïîôùûüÿçœæÀÂÄÉÈÊËÏÎÔÙÛÜŸÇŒÆ'-]+)/g,
+    wordTest: /[a-zA-ZàâäéèêëïîôùûüÿçœæÀÂÄÉÈÊËÏÎÔÙÛÜŸÇŒÆ]/,
+    voicePrefix: 'fr',
+    ttsLang: 'fr-FR',
+    translateFrom: 'fr',
+    translateTo: 'en',
+    importLabel: 'Importer un texte français',
+    dbName: 'langvault_fr'
+  }
+};
+
+var currentLang = null;  // set when user picks a language
+var WORD_REGEX = /([а-яА-ЯёЁ]+)/g;  // default fallback
+var WORD_TEST = /[а-яА-ЯёЁ]/;
+
+function getLangConfig() { return LANG_CONFIG[currentLang] || LANG_CONFIG.ru; }
 
 // Safari-compatible fetch timeout (no AbortController — uses Promise.race)
 function fetchWithTimeout(url, opts, ms) {
@@ -1172,8 +1317,8 @@ function fetchWithTimeout(url, opts, ms) {
   });
   return Promise.race([fetch(url, opts || {}), timeout]);
 }
-const DB_NAME = 'rusvault';
-const DB_VERSION = 2;
+var DB_NAME = 'rusvault';
+var DB_VERSION = 2;
 
 // ── State ──
 let db = null;
@@ -1192,12 +1337,13 @@ let pages = [];               // array of arrays: each sub-array = chunk indices
 let currentPage = 0;
 
 // ── Preload TTS voices ──
-let cachedRuVoice = null;
+let cachedVoice = null;
 function preloadVoices() {
   if (!('speechSynthesis' in window)) return;
   var voices = speechSynthesis.getVoices();
-  if (voices.length > 0) {
-    cachedRuVoice = voices.find(function(v) { return v.lang && v.lang.startsWith('ru'); }) || null;
+  if (voices.length > 0 && currentLang) {
+    var prefix = getLangConfig().voicePrefix;
+    cachedVoice = voices.find(function(v) { return v.lang && v.lang.startsWith(prefix); }) || null;
   }
 }
 preloadVoices();
@@ -1561,25 +1707,27 @@ async function fetchYTSubtitles(videoId) {
       var listData = await capResp.json();
       var captions = listData.captions || [];
 
-      // Find Russian caption
+      // Find caption in target language
+      var targetLang = currentLang || 'ru';
+      var langLabels = { ru: ['русск', 'russian'], en: ['english', 'англ'], fr: ['french', 'français', 'franc'] };
       var target = null;
       for (var c = 0; c < captions.length; c++) {
         var cap = captions[c];
         var lc = (cap.language_code || cap.languageCode || '').toLowerCase();
-        if (lc === 'ru' || lc.startsWith('ru-')) {
+        if (lc === targetLang || lc.startsWith(targetLang + '-')) {
           target = cap;
           break;
         }
       }
 
       if (!target) {
-        // Try auto-generated (label often contains "auto" or "автоматически")
+        var labels = langLabels[targetLang] || [targetLang];
         for (var c2 = 0; c2 < captions.length; c2++) {
           var label = (captions[c2].label || '').toLowerCase();
-          if (label.indexOf('русск') !== -1 || label.indexOf('russian') !== -1) {
-            target = captions[c2];
-            break;
+          for (var lb = 0; lb < labels.length; lb++) {
+            if (label.indexOf(labels[lb]) !== -1) { target = captions[c2]; break; }
           }
+          if (target) break;
         }
       }
 
@@ -1612,7 +1760,7 @@ async function fetchYTSubtitles(videoId) {
     try {
       status.textContent = '🔄 Tentative via backend Vercel…';
       vercelUrl = vercelUrl.replace(/\/+$/, '');
-      var vResp = await fetchWithTimeout(vercelUrl + '/api/subs?v=' + videoId + '&lang=ru', {}, 25000);
+      var vResp = await fetchWithTimeout(vercelUrl + '/api/subs?v=' + videoId + '&lang=' + (currentLang || 'ru'), {}, 25000);
       if (vResp.ok) {
         var vData = await vResp.json();
         if (vData.ok && vData.text && vData.text.length > 20) {
@@ -1735,7 +1883,7 @@ async function renderLessonList() {
   for (var i = 0; i < lessons.length; i++) {
     var l = lessons[i];
     // Count word stats for this lesson
-    var words = l.text.match(RU_WORD) || [];
+    var words = l.text.match(WORD_REGEX) || [];
     var uniqueWords = {};
     for (var j = 0; j < words.length; j++) {
       uniqueWords[words[j].toLowerCase()] = true;
@@ -1911,12 +2059,12 @@ function showPage(pageIndex) {
 
       var p = document.createElement('p');
 
-      var parts = chunkText.split(RU_WORD);
+      var parts = chunkText.split(WORD_REGEX);
       for (var j = 0; j < parts.length; j++) {
         var part = parts[j];
         if (!part) continue;
 
-        if (/^[а-яА-ЯёЁ]+$/.test(part)) {
+        if (WORD_TEST.test(part) && part.match(/^\S+$/)) {
           var lower = part.toLowerCase();
           var span = document.createElement('span');
           span.className = 'w';
@@ -2139,7 +2287,7 @@ function onWordTap(e) {
   currentCtx = ctx;
 
   showWordPanel(word, ctx);
-  speakRussian(word);
+  speakWord(word);
 }
 
 function showWordPanel(word, ctx) {
@@ -2184,22 +2332,23 @@ document.getElementById('panelOverlay').addEventListener('click', hideWordPanel)
 document.getElementById('panelSpeak').addEventListener('click', function(e) {
   e.stopPropagation();
   if (!currentWord) return;
-  speakRussian(currentWord);
+  speakWord(currentWord);
 });
 
-function speakRussian(word) {
+function speakWord(word) {
   if (!word) return;
+  var cfg = getLangConfig();
   if ('speechSynthesis' in window) {
     speechSynthesis.cancel();
     var u = new SpeechSynthesisUtterance(word);
-    u.lang = 'ru-RU';
+    u.lang = cfg.ttsLang;
     u.rate = 0.85;
-    if (cachedRuVoice) {
-      u.voice = cachedRuVoice;
+    if (cachedVoice) {
+      u.voice = cachedVoice;
     } else {
       var voices = speechSynthesis.getVoices();
-      var ruVoice = voices.find(function(v) { return v.lang && v.lang.startsWith('ru'); });
-      if (ruVoice) { u.voice = ruVoice; cachedRuVoice = ruVoice; }
+      var voice = voices.find(function(v) { return v.lang && v.lang.startsWith(cfg.voicePrefix); });
+      if (voice) { u.voice = voice; cachedVoice = voice; }
     }
     var spoke = false;
     u.onstart = function() { spoke = true; };
@@ -2214,13 +2363,17 @@ function speakRussian(word) {
 }
 
 function playTTSFallback(word) {
-  var audio = new Audio('https://translate.googleapis.com/translate_tts?ie=UTF-8&client=gtx&tl=ru&q=' + encodeURIComponent(word));
+  var tl = currentLang || 'ru';
+  var audio = new Audio('https://translate.googleapis.com/translate_tts?ie=UTF-8&client=gtx&tl=' + tl + '&q=' + encodeURIComponent(word));
   audio.volume = 1.0;
   audio.play().catch(function() {});
 }
 
 // ── Translation ──
 async function fetchTranslation(word, sentence) {
+  var cfg = getLangConfig();
+  var sl = cfg.translateFrom;
+  var tl = cfg.translateTo;
   try {
     var translation = '';
     var altsHtml = '';
@@ -2234,7 +2387,7 @@ async function fetchTranslation(word, sentence) {
 
     for (var li = 0; li < lingvaInstances.length; li++) {
       try {
-        var lUrl = lingvaInstances[li] + '/api/v1/ru/fr/' + encodeURIComponent(word);
+        var lUrl = lingvaInstances[li] + '/api/v1/' + sl + '/' + tl + '/' + encodeURIComponent(word);
         var lr = await fetchWithTimeout(lUrl, {}, 4000);
         if (lr.ok) {
           var ld = await lr.json();
@@ -2249,7 +2402,7 @@ async function fetchTranslation(word, sentence) {
     // Strategy 2: MyMemory (free, 5000 words/day)
     if (!translation) {
       try {
-        var mmUrl = 'https://api.mymemory.translated.net/get?q=' + encodeURIComponent(word) + '&langpair=ru|fr';
+        var mmUrl = 'https://api.mymemory.translated.net/get?q=' + encodeURIComponent(word) + '&langpair=' + sl + '|' + tl;
         var mr = await fetchWithTimeout(mmUrl, {}, 4000);
         if (mr.ok) {
           var md = await mr.json();
@@ -2275,7 +2428,7 @@ async function fetchTranslation(word, sentence) {
     // Strategy 3: Google Translate direct (last resort)
     if (!translation) {
       try {
-        var gp = 'client=gtx&sl=ru&tl=fr&dt=t&dt=bd&q=' + encodeURIComponent(word);
+        var gp = 'client=gtx&sl=' + sl + '&tl=' + tl + '&dt=t&dt=bd&q=' + encodeURIComponent(word);
         var gr = await fetchWithTimeout('https://translate.googleapis.com/translate_a/single?' + gp, {}, 4000);
         var gd = await gr.json();
         if (gd && gd[0]) {
@@ -2310,7 +2463,7 @@ async function fetchTranslation(word, sentence) {
         // Try Lingva first for sentence
         for (var si = 0; si < lingvaInstances.length; si++) {
           try {
-            var slUrl = lingvaInstances[si] + '/api/v1/ru/fr/' + encodeURIComponent(sq);
+            var slUrl = lingvaInstances[si] + '/api/v1/' + sl + '/' + tl + '/' + encodeURIComponent(sq);
             var slr = await fetchWithTimeout(slUrl, {}, 4000);
             if (slr.ok) {
               var sld = await slr.json();
@@ -2321,7 +2474,7 @@ async function fetchTranslation(word, sentence) {
 
         // Fallback to MyMemory for sentence
         if (!sentTrans) {
-          var smUrl = 'https://api.mymemory.translated.net/get?q=' + encodeURIComponent(sq) + '&langpair=ru|fr';
+          var smUrl = 'https://api.mymemory.translated.net/get?q=' + encodeURIComponent(sq) + '&langpair=' + sl + '|' + tl;
           var smr = await fetchWithTimeout(smUrl, {}, 4000);
           if (smr.ok) {
             var smd = await smr.json();
@@ -2557,7 +2710,7 @@ document.getElementById('btnExport').addEventListener('click', async () => {
   const url = URL.createObjectURL(blob);
   const a = document.createElement('a');
   a.href = url;
-  a.download = `rusvault-export-${new Date().toISOString().substring(0, 10)}.json`;
+  a.download = `langvault-${currentLang || 'export'}-${new Date().toISOString().substring(0, 10)}.json`;
   a.click();
   URL.revokeObjectURL(url);
   showToast('📤 Exported!');
@@ -2778,7 +2931,7 @@ async function getFcCandidateWords() {
     var lesson = await dbGet('lessons', lessonId);
     if (lesson) {
       var lessonWords = {};
-      var matches = lesson.text.match(/[а-яА-ЯёЁ]+/g) || [];
+      var matches = lesson.text.match(WORD_REGEX) || [];
       for (var m = 0; m < matches.length; m++) {
         lessonWords[matches[m].toLowerCase()] = true;
       }
@@ -2936,7 +3089,7 @@ function showFcCard() {
   document.getElementById('fcEasyInt').textContent = formatInterval(simulEasy.srsInterval);
 
   // Auto-speak
-  speakRussian(word.word || word.wordLower);
+  speakWord(word.word || word.wordLower);
 }
 
 // Reveal on card tap
@@ -2962,7 +3115,7 @@ document.getElementById('fcSpeak').addEventListener('click', function(e) {
   e.stopPropagation();
   if (fcIndex < fcDeck.length) {
     var word = fcDeck[fcIndex];
-    speakRussian(word.word || word.wordLower);
+    speakWord(word.word || word.wordLower);
   }
 });
 
@@ -3051,10 +3204,81 @@ document.getElementById('fcCloseBtn').addEventListener('click', function() {
   });
   document.getElementById('fcSpeak').addEventListener('click', function(e) {
     e.stopPropagation();
-    if (fcIndex < fcDeck.length) speakRussian(fcDeck[fcIndex].word || fcDeck[fcIndex].wordLower);
+    if (fcIndex < fcDeck.length) speakWord(fcDeck[fcIndex].word || fcDeck[fcIndex].wordLower);
   });
 
   renderVocabList();
+});
+
+// ══════════════════════════════════════════
+//  LANGUAGE SELECTION & NAVIGATION
+// ══════════════════════════════════════════
+
+function showHome() {
+  // Show home, hide app views
+  document.querySelectorAll('.view').forEach(function(v) { v.classList.remove('active'); });
+  document.getElementById('viewHome').classList.add('active');
+  document.querySelector('.tab-bar').classList.add('hidden');
+  document.querySelectorAll('.tab').forEach(function(t) { t.classList.remove('active'); });
+  document.getElementById('logoText').textContent = 'Lang';
+}
+
+async function selectLanguage(lang) {
+  currentLang = lang;
+  var cfg = getLangConfig();
+
+  // Set dynamic word patterns
+  WORD_REGEX = cfg.wordRegex;
+  WORD_TEST = cfg.wordTest;
+
+  // Update DB name and reopen
+  DB_NAME = cfg.dbName;
+  db = null;
+  wordCache = new Map();
+  await openDB();
+  await loadWordCache();
+
+  // Update UI
+  document.getElementById('logoText').textContent = cfg.flag + ' ';
+  document.getElementById('importHeading').textContent = cfg.importLabel;
+
+  // Save choice
+  localStorage.setItem('lv_lang', lang);
+
+  // Reset reader state
+  currentLessonId = null;
+  allChunks = [];
+  pages = [];
+  currentPage = 0;
+  document.getElementById('importArea').style.display = '';
+  document.getElementById('readerContent').classList.remove('has-text');
+
+  // Preload voices for this language
+  cachedVoice = null;
+  preloadVoices();
+
+  // Show app
+  document.querySelector('.tab-bar').classList.remove('hidden');
+  document.querySelectorAll('.view').forEach(function(v) { v.classList.remove('active'); });
+  document.getElementById('viewReader').classList.add('active');
+  document.querySelectorAll('.tab').forEach(function(t) { t.classList.remove('active'); });
+  document.querySelector('.tab[data-view="viewReader"]').classList.add('active');
+
+  // Refresh
+  renderLessonList();
+  console.log('[LangVault] ' + cfg.name + ' ready. ' + wordCache.size + ' words cached.');
+}
+
+// Language card clicks
+document.querySelectorAll('.lang-card').forEach(function(card) {
+  card.addEventListener('click', function() {
+    selectLanguage(card.dataset.lang);
+  });
+});
+
+// Logo click → back to home
+document.getElementById('logoBtn').addEventListener('click', function() {
+  showHome();
 });
 
 // ══════════════════════════════════════════
@@ -3063,10 +3287,13 @@ document.getElementById('fcCloseBtn').addEventListener('click', function() {
 
 async function init() {
   loadSettings();
-  await openDB();
-  await loadWordCache();
-  renderLessonList();
-  console.log(`[RusVault] Ready. ${wordCache.size} words cached.`);
+
+  var savedLang = localStorage.getItem('lv_lang');
+  if (savedLang && LANG_CONFIG[savedLang]) {
+    await selectLanguage(savedLang);
+  } else {
+    showHome();
+  }
 }
 
 init().catch(function(err) { console.error('[RusVault] Init error:', err); });
