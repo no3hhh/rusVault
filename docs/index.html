@@ -10,6 +10,7 @@
 <link rel="manifest" href="manifest.json">
 <link rel="apple-touch-icon" href="icon-192.png">
 <title>RusVault</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;600&family=Outfit:wght@300;400;600;800&display=swap" rel="stylesheet">
 <style>
@@ -777,6 +778,77 @@ input[type="file"] { display: none; }
 .lesson-card-actions button { flex:1;padding:6px;border:none;border-radius:8px;font-size:12px;font-weight:600;cursor:pointer; }
 .lesson-btn-resume { background:var(--accent);color:#fff; }
 .lesson-btn-delete { background:var(--surface2);color:var(--muted); }
+
+/* ══════════════════════════════════════════
+   FLASHCARD MODE
+   ══════════════════════════════════════════ */
+.fc-setup { padding: 4px 0; }
+.fc-setup-title { font-size: 16px; font-weight: 700; margin-bottom: 14px; display: flex; align-items: center; gap: 8px; }
+.fc-option-group { background: var(--surface); border-radius: var(--radius); padding: 14px 16px; margin-bottom: 12px; }
+.fc-option-label { font-size: 13px; font-weight: 600; color: var(--muted); margin-bottom: 8px; }
+.fc-option-row { display: flex; gap: 6px; flex-wrap: wrap; }
+.fc-chip {
+  padding: 8px 14px; border-radius: 20px; background: var(--surface2); border: 1px solid var(--border);
+  color: var(--muted); font-size: 13px; font-weight: 500; cursor: pointer; font-family: inherit; transition: all 0.12s;
+}
+.fc-chip.active { background: var(--accent-dim); color: var(--accent); border-color: rgba(233,69,96,0.3); }
+.fc-start-btn {
+  width: 100%; padding: 16px; border: none; border-radius: var(--radius); background: var(--accent); color: #fff;
+  font-size: 16px; font-weight: 700; cursor: pointer; font-family: inherit; margin-top: 8px; transition: all 0.12s;
+}
+.fc-start-btn:active { transform: scale(0.98); }
+.fc-start-btn:disabled { opacity: 0.4; }
+
+/* Flashcard session */
+.fc-session {
+  display: none; position: absolute; inset: 0; z-index: 60; background: var(--bg);
+  flex-direction: column; padding: 0;
+}
+.fc-session.active { display: flex; }
+.fc-session-header {
+  display: flex; align-items: center; justify-content: space-between; padding: 12px 16px;
+  border-bottom: 1px solid var(--border); flex-shrink: 0;
+}
+.fc-progress-text { font-family: 'JetBrains Mono'; font-size: 13px; color: var(--muted); }
+.fc-close { background: none; border: none; color: var(--muted); font-size: 22px; cursor: pointer; }
+.fc-progress-bar { height: 3px; background: var(--surface2); flex-shrink: 0; }
+.fc-progress-fill { height: 100%; background: var(--green); transition: width 0.3s; }
+
+.fc-card-area {
+  flex: 1; display: flex; align-items: center; justify-content: center; padding: 20px; overflow: hidden;
+}
+.fc-card {
+  width: 100%; max-width: 360px; background: var(--surface); border-radius: 20px;
+  padding: 32px 24px; text-align: center; cursor: pointer;
+  box-shadow: 0 4px 24px rgba(0,0,0,0.15); transition: transform 0.15s;
+  min-height: 200px; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 12px;
+}
+.fc-card:active { transform: scale(0.98); }
+.fc-card-word { font-size: 32px; font-weight: 800; color: var(--accent); }
+.fc-card-hint { font-size: 13px; color: var(--muted); }
+.fc-card-answer { font-size: 22px; font-weight: 600; color: var(--green); margin-top: 8px; }
+.fc-card-ctx { font-size: 12px; color: var(--muted); font-style: italic; margin-top: 4px; max-width: 280px; }
+.fc-speak-btn { background: none; border: none; font-size: 28px; cursor: pointer; margin-top: 4px; }
+
+.fc-buttons {
+  display: flex; gap: 8px; padding: 12px 16px; padding-bottom: calc(12px + var(--safe-bottom));
+  flex-shrink: 0; border-top: 1px solid var(--border); background: var(--surface);
+}
+.fc-btn {
+  flex: 1; padding: 14px 8px; border: none; border-radius: 12px;
+  font-weight: 700; font-size: 13px; cursor: pointer; font-family: inherit; transition: all 0.12s;
+  display: flex; flex-direction: column; align-items: center; gap: 2px;
+}
+.fc-btn:active { transform: scale(0.96); }
+.fc-btn-again { background: rgba(233,69,96,0.15); color: var(--accent); }
+.fc-btn-hard { background: var(--yellow-dim); color: var(--yellow); }
+.fc-btn-good { background: var(--green-dim); color: var(--green); }
+.fc-btn-easy { background: var(--blue-dim); color: var(--blue); }
+.fc-btn span { font-size: 10px; font-weight: 400; opacity: 0.7; }
+.fc-result { text-align: center; padding: 40px 20px; }
+.fc-result-big { font-size: 48px; margin-bottom: 12px; }
+.fc-result-text { font-size: 18px; font-weight: 600; margin-bottom: 6px; }
+.fc-result-sub { font-size: 14px; color: var(--muted); }
 </style>
 </head>
 <body>
@@ -800,9 +872,11 @@ input[type="file"] { display: none; }
         <div class="import-btns">
           <button class="import-btn" id="btnPaste"><span class="em">📄</span> Paste text</button>
           <button class="import-btn" id="btnFile"><span class="em">📂</span> .txt file</button>
+          <button class="import-btn" id="btnPdf"><span class="em">📕</span> PDF</button>
           <button class="import-btn" id="btnYT"><span class="em">🎥</span> YouTube</button>
         </div>
         <input type="file" id="fileInput" accept=".txt">
+        <input type="file" id="pdfInput" accept=".pdf">
         <div id="lessonList" style="margin-top:20px;"></div>
       </div>
 
@@ -828,18 +902,75 @@ input[type="file"] { display: none; }
 
     <!-- ── VOCAB ── -->
     <div class="view" id="viewVocab">
-      <div class="search-bar">
-        <input class="search-input" id="vocabSearch" placeholder="Search words…" type="text" autocomplete="off" autocapitalize="off" spellcheck="false">
+      <!-- Vocab mode toggle -->
+      <div style="display:flex;gap:8px;margin-bottom:12px;">
+        <button class="chip active" id="btnVocabList" style="flex:1;text-align:center;padding:10px;">📖 Liste</button>
+        <button class="chip" id="btnVocabFlash" style="flex:1;text-align:center;padding:10px;">🃏 Flashcards</button>
       </div>
-      <div class="filter-chips" id="filterChips">
-        <button class="chip active" data-filter="all">All</button>
-        <button class="chip" data-filter="new">New</button>
-        <button class="chip" data-filter="saved">Saved</button>
-        <button class="chip" data-filter="learning">Learning</button>
-        <button class="chip" data-filter="known">Known</button>
-        <button class="chip" data-filter="ignored">Ignored</button>
+
+      <!-- LIST MODE -->
+      <div id="vocabListMode">
+        <div class="search-bar">
+          <input class="search-input" id="vocabSearch" placeholder="Search words…" type="text" autocomplete="off" autocapitalize="off" spellcheck="false">
+        </div>
+        <div class="filter-chips" id="filterChips">
+          <button class="chip active" data-filter="all">All</button>
+          <button class="chip" data-filter="new">New</button>
+          <button class="chip" data-filter="saved">Saved</button>
+          <button class="chip" data-filter="learning">Learning</button>
+          <button class="chip" data-filter="known">Known</button>
+          <button class="chip" data-filter="ignored">Ignored</button>
+        </div>
+        <div class="word-list" id="wordList"></div>
       </div>
-      <div class="word-list" id="wordList"></div>
+
+      <!-- FLASHCARD SETUP -->
+      <div id="vocabFlashMode" style="display:none;">
+        <div class="fc-setup">
+          <div class="fc-option-group">
+            <div class="fc-option-label">📚 Source</div>
+            <div class="fc-option-row" id="fcLessonChips">
+              <button class="fc-chip active" data-lesson="all">Tout le vocab</button>
+              <button class="fc-chip" data-lesson="due">À réviser</button>
+            </div>
+          </div>
+          <div class="fc-option-group">
+            <div class="fc-option-label">🔢 Nombre de cartes</div>
+            <div class="fc-option-row" id="fcCountChips">
+              <button class="fc-chip" data-count="10">10</button>
+              <button class="fc-chip active" data-count="20">20</button>
+              <button class="fc-chip" data-count="50">50</button>
+              <button class="fc-chip" data-count="all">Tout</button>
+            </div>
+          </div>
+          <div id="fcWordCount" style="text-align:center;font-size:13px;color:var(--muted);margin:8px 0;"></div>
+          <button class="fc-start-btn" id="fcStartBtn">▶ Commencer la révision</button>
+        </div>
+      </div>
+
+      <!-- FLASHCARD SESSION (fullscreen overlay inside vocab) -->
+      <div class="fc-session" id="fcSession">
+        <div class="fc-session-header">
+          <span class="fc-progress-text" id="fcProgressText">0 / 0</span>
+          <button class="fc-close" id="fcCloseBtn">✕</button>
+        </div>
+        <div class="fc-progress-bar"><div class="fc-progress-fill" id="fcProgressFill" style="width:0%"></div></div>
+        <div class="fc-card-area" id="fcCardArea">
+          <div class="fc-card" id="fcCard">
+            <div class="fc-card-word" id="fcWord">—</div>
+            <button class="fc-speak-btn" id="fcSpeak">🔊</button>
+            <div class="fc-card-hint" id="fcHint">Tap pour révéler</div>
+            <div class="fc-card-answer" id="fcAnswer" style="display:none;">—</div>
+            <div class="fc-card-ctx" id="fcCtx" style="display:none;"></div>
+          </div>
+        </div>
+        <div class="fc-buttons" id="fcButtons" style="display:none;">
+          <button class="fc-btn fc-btn-again" data-grade="0">Oublié<span>&lt;1m</span></button>
+          <button class="fc-btn fc-btn-hard" data-grade="1">Difficile<span id="fcHardInt">1j</span></button>
+          <button class="fc-btn fc-btn-good" data-grade="2">Bien<span id="fcGoodInt">3j</span></button>
+          <button class="fc-btn fc-btn-easy" data-grade="3">Facile<span id="fcEasyInt">7j</span></button>
+        </div>
+      </div>
     </div>
 
     <!-- ── STATS ── -->
@@ -897,6 +1028,13 @@ input[type="file"] { display: none; }
           </div>
         </div>
       </div>
+
+      <div class="section-title">YouTube (optionnel)</div>
+      <div style="font-size:12px;color:var(--muted);margin-bottom:8px;line-height:1.5;">
+        Si Invidious ne fonctionne pas, tu peux déployer un backend Vercel comme fallback.
+      </div>
+      <input type="url" id="vercelUrlInput" placeholder="https://rusvault-api.vercel.app" style="width:100%;padding:12px;background:var(--surface);border:1px solid var(--border);border-radius:10px;color:var(--text);font-family:inherit;font-size:14px;outline:none;margin-bottom:8px;">
+      <button class="action-btn secondary" id="btnSaveVercel">💾 Sauvegarder URL Vercel</button>
 
       <div class="section-title">Data</div>
       <button class="action-btn secondary" id="btnExport">📤 Export Database (JSON)</button>
@@ -1271,6 +1409,49 @@ document.getElementById('fileInput').addEventListener('change', (e) => {
   e.target.value = '';
 });
 
+// ── PDF ──
+document.getElementById('btnPdf').addEventListener('click', () => {
+  document.getElementById('pdfInput').click();
+});
+document.getElementById('pdfInput').addEventListener('change', async (e) => {
+  const file = e.target.files[0];
+  if (!file) return;
+
+  showToast('📕 Extraction du PDF…');
+
+  try {
+    var arrayBuffer = await file.arrayBuffer();
+    if (typeof pdfjsLib === 'undefined') {
+      showToast('❌ PDF.js non chargé. Vérifie ta connexion.');
+      return;
+    }
+    pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
+    var pdf = await pdfjsLib.getDocument({ data: arrayBuffer }).promise;
+    var fullText = '';
+
+    for (var p = 1; p <= pdf.numPages; p++) {
+      var page = await pdf.getPage(p);
+      var content = await page.getTextContent();
+      var pageText = content.items.map(function(item) { return item.str; }).join(' ');
+      fullText += pageText + '\n';
+    }
+
+    fullText = fullText.trim();
+    if (fullText.length < 10) {
+      showToast('❌ Pas de texte trouvé dans le PDF');
+      return;
+    }
+
+    currentLessonId = null;
+    loadText(fullText, file.name.replace('.pdf', ''));
+    showToast('✓ PDF importé ! (' + pdf.numPages + ' pages)');
+  } catch (err) {
+    console.error('[PDF]', err);
+    showToast('❌ Erreur PDF: ' + err.message);
+  }
+  e.target.value = '';
+});
+
 // ── YouTube ──
 document.getElementById('btnYT').addEventListener('click', function() { openModal('ytModal'); });
 
@@ -1370,9 +1551,9 @@ async function fetchYTSubtitles(videoId) {
     try {
       // Step 1: List available captions
       var listUrl = base + '/api/v1/captions/' + videoId;
-      var listResp = await fetchWithTimeout(listUrl, {}, 6000);
-      if (!listResp.ok) continue;
-      var listData = await listResp.json();
+      var capResp = await fetchWithTimeout(listUrl, {}, 6000);
+      if (!capResp.ok) continue;
+      var listData = await capResp.json();
       var captions = listData.captions || [];
 
       // Find Russian caption
@@ -1418,6 +1599,23 @@ async function fetchYTSubtitles(videoId) {
     } catch (e) {
       continue;
     }
+  }
+
+  // Fallback: try Vercel backend if configured
+  var vercelUrl = localStorage.getItem('rusvault_vercel_url');
+  if (vercelUrl) {
+    try {
+      status.textContent = '🔄 Tentative via backend Vercel…';
+      vercelUrl = vercelUrl.replace(/\/+$/, '');
+      var vResp = await fetchWithTimeout(vercelUrl + '/api/subs?v=' + videoId + '&lang=ru', {}, 25000);
+      if (vResp.ok) {
+        var vData = await vResp.json();
+        if (vData.ok && vData.text && vData.text.length > 20) {
+          status.textContent = '📝 Trouvé via Vercel !';
+          return vData.text;
+        }
+      }
+    } catch (e) { /* Vercel also failed */ }
   }
 
   throw new Error('Aucune instance n\'a pu récupérer les sous-titres');
@@ -2461,6 +2659,382 @@ function showToast(msg) {
 // ══════════════════════════════════════════
 //  UTILITY
 // ══════════════════════════════════════════
+
+// ══════════════════════════════════════════
+//  VERCEL BACKEND URL
+// ══════════════════════════════════════════
+(function() {
+  var input = document.getElementById('vercelUrlInput');
+  if (!input) return;
+  var saved = localStorage.getItem('rusvault_vercel_url') || '';
+  if (saved) input.value = saved;
+
+  document.getElementById('btnSaveVercel').addEventListener('click', function() {
+    var url = input.value.trim();
+    if (url && !url.startsWith('https://')) {
+      showToast('❌ L\'URL doit commencer par https://');
+      return;
+    }
+    if (url) {
+      localStorage.setItem('rusvault_vercel_url', url);
+      showToast('✓ URL Vercel sauvegardée !');
+    } else {
+      localStorage.removeItem('rusvault_vercel_url');
+      showToast('URL Vercel supprimée');
+    }
+  });
+})();
+
+// ══════════════════════════════════════════
+//  FLASHCARD MODE
+// ══════════════════════════════════════════
+
+// Toggle list vs flashcard
+document.getElementById('btnVocabList').addEventListener('click', function() {
+  this.classList.add('active');
+  document.getElementById('btnVocabFlash').classList.remove('active');
+  document.getElementById('vocabListMode').style.display = '';
+  document.getElementById('vocabFlashMode').style.display = 'none';
+});
+
+document.getElementById('btnVocabFlash').addEventListener('click', function() {
+  this.classList.add('active');
+  document.getElementById('btnVocabList').classList.remove('active');
+  document.getElementById('vocabListMode').style.display = 'none';
+  document.getElementById('vocabFlashMode').style.display = '';
+  populateFlashcardSetup();
+});
+
+// --- Chip selection helpers ---
+function setupChipGroup(containerId, callback) {
+  var container = document.getElementById(containerId);
+  if (!container) return;
+  container.addEventListener('click', function(e) {
+    var chip = e.target.closest('.fc-chip');
+    if (!chip) return;
+    container.querySelectorAll('.fc-chip').forEach(function(c) { c.classList.remove('active'); });
+    chip.classList.add('active');
+    if (callback) callback();
+  });
+}
+
+setupChipGroup('fcLessonChips', updateFcWordCount);
+setupChipGroup('fcCountChips', updateFcWordCount);
+
+async function populateFlashcardSetup() {
+  var container = document.getElementById('fcLessonChips');
+  // Keep "all" and "due" chips, add lesson-specific chips
+  var lessons = await dbGetAll('lessons');
+  // Remove old lesson chips
+  container.querySelectorAll('[data-lesson-id]').forEach(function(c) { c.remove(); });
+
+  for (var i = 0; i < lessons.length; i++) {
+    var btn = document.createElement('button');
+    btn.className = 'fc-chip';
+    btn.dataset.lessonId = lessons[i].id;
+    btn.dataset.lesson = 'lesson-' + lessons[i].id;
+    btn.textContent = lessons[i].title.length > 18 ? lessons[i].title.substring(0, 18) + '…' : lessons[i].title;
+    container.appendChild(btn);
+  }
+  updateFcWordCount();
+}
+
+async function getFcCandidateWords() {
+  var activeChip = document.querySelector('#fcLessonChips .fc-chip.active');
+  var lessonFilter = activeChip ? activeChip.dataset.lesson : 'all';
+
+  var allWords = await dbGetAll('words');
+  var candidates = [];
+
+  if (lessonFilter === 'all') {
+    candidates = allWords.filter(function(w) {
+      return w.status === 'saved' || w.status === 'learning';
+    });
+  } else if (lessonFilter === 'due') {
+    var now = Date.now();
+    candidates = allWords.filter(function(w) {
+      if (w.status !== 'saved' && w.status !== 'learning') return false;
+      if (!w.nextReview) return true;
+      return new Date(w.nextReview).getTime() <= now;
+    });
+  } else {
+    // Specific lesson
+    var lessonId = parseInt(activeChip.dataset.lessonId);
+    var lesson = await dbGet('lessons', lessonId);
+    if (lesson) {
+      var lessonWords = {};
+      var matches = lesson.text.match(/[а-яА-ЯёЁ]+/g) || [];
+      for (var m = 0; m < matches.length; m++) {
+        lessonWords[matches[m].toLowerCase()] = true;
+      }
+      candidates = allWords.filter(function(w) {
+        return lessonWords[w.wordLower || w.word] && (w.status === 'saved' || w.status === 'learning');
+      });
+    }
+  }
+
+  return candidates;
+}
+
+function updateFcWordCount() {
+  getFcCandidateWords().then(function(candidates) {
+    var countChip = document.querySelector('#fcCountChips .fc-chip.active');
+    var maxCount = countChip ? countChip.dataset.count : '20';
+    var total = candidates.length;
+    var actual = maxCount === 'all' ? total : Math.min(parseInt(maxCount), total);
+
+    document.getElementById('fcWordCount').textContent = actual + ' carte' + (actual > 1 ? 's' : '') + ' disponible' + (actual > 1 ? 's' : '') + ' sur ' + total;
+    document.getElementById('fcStartBtn').disabled = (actual === 0);
+  });
+}
+
+// --- SRS Algorithm (SM-2 inspired, hidden from user) ---
+function srsSchedule(word, grade) {
+  // grade: 0=again, 1=hard, 2=good, 3=easy
+  var interval = word.srsInterval || 0;  // in minutes
+  var ease = word.srsEase || 2.5;
+  var reps = word.srsReps || 0;
+  var now = new Date();
+
+  if (grade === 0) {
+    // Again — reset, show again in 1 minute
+    interval = 1;
+    reps = 0;
+    ease = Math.max(1.3, ease - 0.2);
+  } else if (grade === 1) {
+    // Hard
+    if (reps === 0) { interval = 10; }
+    else if (reps === 1) { interval = 60 * 24; }     // 1 day
+    else { interval = interval * 1.2; }
+    ease = Math.max(1.3, ease - 0.15);
+    reps++;
+  } else if (grade === 2) {
+    // Good
+    if (reps === 0) { interval = 60 * 24; }          // 1 day
+    else if (reps === 1) { interval = 60 * 24 * 3; }  // 3 days
+    else { interval = interval * ease; }
+    reps++;
+  } else if (grade === 3) {
+    // Easy
+    if (reps === 0) { interval = 60 * 24 * 3; }      // 3 days
+    else if (reps === 1) { interval = 60 * 24 * 7; }  // 7 days
+    else { interval = interval * ease * 1.3; }
+    ease += 0.15;
+    reps++;
+  }
+
+  var nextReview = new Date(now.getTime() + interval * 60 * 1000);
+
+  // Determine if word is now "known"
+  var newStatus = word.status;
+  if (interval >= 60 * 24 * 21) {
+    // 21+ days interval = considered known
+    newStatus = 'known';
+  } else {
+    newStatus = 'learning';
+  }
+
+  return {
+    srsInterval: Math.round(interval),
+    srsEase: Math.round(ease * 100) / 100,
+    srsReps: reps,
+    nextReview: nextReview.toISOString(),
+    status: newStatus
+  };
+}
+
+function formatInterval(minutes) {
+  if (minutes < 60) return Math.round(minutes) + 'm';
+  if (minutes < 60 * 24) return Math.round(minutes / 60) + 'h';
+  return Math.round(minutes / (60 * 24)) + 'j';
+}
+
+// --- Flashcard Session ---
+var fcDeck = [];
+var fcIndex = 0;
+var fcRevealed = false;
+var fcResults = { again: 0, hard: 0, good: 0, easy: 0 };
+
+document.getElementById('fcStartBtn').addEventListener('click', async function() {
+  var candidates = await getFcCandidateWords();
+  if (candidates.length === 0) { showToast('Aucun mot à réviser'); return; }
+
+  var countChip = document.querySelector('#fcCountChips .fc-chip.active');
+  var maxCount = countChip ? countChip.dataset.count : '20';
+  var max = maxCount === 'all' ? candidates.length : parseInt(maxCount);
+
+  // Shuffle
+  for (var s = candidates.length - 1; s > 0; s--) {
+    var r = Math.floor(Math.random() * (s + 1));
+    var tmp = candidates[s]; candidates[s] = candidates[r]; candidates[r] = tmp;
+  }
+
+  // Prioritize: due items first, then by least seen
+  candidates.sort(function(a, b) {
+    var aDue = (!a.nextReview || new Date(a.nextReview).getTime() <= Date.now()) ? 0 : 1;
+    var bDue = (!b.nextReview || new Date(b.nextReview).getTime() <= Date.now()) ? 0 : 1;
+    if (aDue !== bDue) return aDue - bDue;
+    return (a.srsReps || 0) - (b.srsReps || 0);
+  });
+
+  fcDeck = candidates.slice(0, max);
+  fcIndex = 0;
+  fcRevealed = false;
+  fcResults = { again: 0, hard: 0, good: 0, easy: 0 };
+
+  document.getElementById('fcSession').classList.add('active');
+  showFcCard();
+});
+
+function showFcCard() {
+  if (fcIndex >= fcDeck.length) {
+    showFcResults();
+    return;
+  }
+
+  var word = fcDeck[fcIndex];
+  fcRevealed = false;
+
+  document.getElementById('fcWord').textContent = word.word || word.wordLower;
+  document.getElementById('fcHint').style.display = '';
+  document.getElementById('fcAnswer').style.display = 'none';
+  document.getElementById('fcCtx').style.display = 'none';
+  document.getElementById('fcButtons').style.display = 'none';
+
+  // Update progress
+  document.getElementById('fcProgressText').textContent = (fcIndex + 1) + ' / ' + fcDeck.length;
+  var pct = ((fcIndex) / fcDeck.length) * 100;
+  document.getElementById('fcProgressFill').style.width = pct + '%';
+
+  // Preview intervals for buttons
+  var simulHard = srsSchedule(word, 1);
+  var simulGood = srsSchedule(word, 2);
+  var simulEasy = srsSchedule(word, 3);
+  document.getElementById('fcHardInt').textContent = formatInterval(simulHard.srsInterval);
+  document.getElementById('fcGoodInt').textContent = formatInterval(simulGood.srsInterval);
+  document.getElementById('fcEasyInt').textContent = formatInterval(simulEasy.srsInterval);
+
+  // Auto-speak
+  speakRussian(word.word || word.wordLower);
+}
+
+// Reveal on card tap
+document.getElementById('fcCard').addEventListener('click', function() {
+  if (fcRevealed || fcIndex >= fcDeck.length) return;
+  fcRevealed = true;
+
+  var word = fcDeck[fcIndex];
+  document.getElementById('fcHint').style.display = 'none';
+  document.getElementById('fcAnswer').style.display = '';
+  document.getElementById('fcAnswer').textContent = word.translation || '(pas de traduction)';
+
+  if (word.contexts && word.contexts.length > 0) {
+    document.getElementById('fcCtx').style.display = '';
+    document.getElementById('fcCtx').textContent = '« ' + word.contexts[0].substring(0, 120) + ' »';
+  }
+
+  document.getElementById('fcButtons').style.display = '';
+});
+
+// Speak button
+document.getElementById('fcSpeak').addEventListener('click', function(e) {
+  e.stopPropagation();
+  if (fcIndex < fcDeck.length) {
+    var word = fcDeck[fcIndex];
+    speakRussian(word.word || word.wordLower);
+  }
+});
+
+// Grade buttons
+document.getElementById('fcButtons').addEventListener('click', async function(e) {
+  var btn = e.target.closest('.fc-btn');
+  if (!btn) return;
+  var grade = parseInt(btn.dataset.grade);
+
+  var word = fcDeck[fcIndex];
+  var srs = srsSchedule(word, grade);
+
+  // Update word in DB
+  word.srsInterval = srs.srsInterval;
+  word.srsEase = srs.srsEase;
+  word.srsReps = srs.srsReps;
+  word.nextReview = srs.nextReview;
+  word.status = srs.status;
+  word.lastSeen = new Date().toISOString();
+
+  await dbPut('words', word);
+  wordCache.set(word.wordLower || word.word, word);
+
+  // Track results
+  if (grade === 0) fcResults.again++;
+  else if (grade === 1) fcResults.hard++;
+  else if (grade === 2) fcResults.good++;
+  else fcResults.easy++;
+
+  // If "again", put card back in deck a few positions later
+  if (grade === 0) {
+    var reinsertAt = Math.min(fcIndex + 3 + Math.floor(Math.random() * 3), fcDeck.length);
+    fcDeck.splice(reinsertAt, 0, word);
+  }
+
+  fcIndex++;
+  showFcCard();
+});
+
+function showFcResults() {
+  var total = fcResults.again + fcResults.hard + fcResults.good + fcResults.easy;
+  var successRate = total > 0 ? Math.round(((fcResults.good + fcResults.easy) / total) * 100) : 0;
+
+  var emoji = successRate >= 80 ? '🏆' : successRate >= 50 ? '💪' : '📖';
+
+  document.getElementById('fcCardArea').innerHTML =
+    '<div class="fc-result">' +
+      '<div class="fc-result-big">' + emoji + '</div>' +
+      '<div class="fc-result-text">' + successRate + '% de réussite</div>' +
+      '<div class="fc-result-sub">' +
+        '❌ ' + fcResults.again + '  ·  🟡 ' + fcResults.hard + '  ·  ✅ ' + fcResults.good + '  ·  ⭐ ' + fcResults.easy +
+      '</div>' +
+    '</div>';
+
+  document.getElementById('fcButtons').style.display = 'none';
+  document.getElementById('fcProgressFill').style.width = '100%';
+  document.getElementById('fcProgressText').textContent = 'Terminé !';
+}
+
+// Close flashcard session
+document.getElementById('fcCloseBtn').addEventListener('click', function() {
+  document.getElementById('fcSession').classList.remove('active');
+  // Reset card area HTML for next session
+  document.getElementById('fcCardArea').innerHTML =
+    '<div class="fc-card" id="fcCard">' +
+      '<div class="fc-card-word" id="fcWord">—</div>' +
+      '<button class="fc-speak-btn" id="fcSpeak">🔊</button>' +
+      '<div class="fc-card-hint" id="fcHint">Tap pour révéler</div>' +
+      '<div class="fc-card-answer" id="fcAnswer" style="display:none;">—</div>' +
+      '<div class="fc-card-ctx" id="fcCtx" style="display:none;"></div>' +
+    '</div>';
+
+  // Re-bind card and speak events
+  document.getElementById('fcCard').addEventListener('click', function() {
+    if (fcRevealed || fcIndex >= fcDeck.length) return;
+    fcRevealed = true;
+    var word = fcDeck[fcIndex];
+    document.getElementById('fcHint').style.display = 'none';
+    document.getElementById('fcAnswer').style.display = '';
+    document.getElementById('fcAnswer').textContent = word.translation || '(pas de traduction)';
+    if (word.contexts && word.contexts.length > 0) {
+      document.getElementById('fcCtx').style.display = '';
+      document.getElementById('fcCtx').textContent = '« ' + word.contexts[0].substring(0, 120) + ' »';
+    }
+    document.getElementById('fcButtons').style.display = '';
+  });
+  document.getElementById('fcSpeak').addEventListener('click', function(e) {
+    e.stopPropagation();
+    if (fcIndex < fcDeck.length) speakRussian(fcDeck[fcIndex].word || fcDeck[fcIndex].wordLower);
+  });
+
+  renderVocabList();
+});
 
 // ══════════════════════════════════════════
 //  INIT
