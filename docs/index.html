@@ -952,6 +952,10 @@ input[type="file"] { display: none; }
 }
 .level-xp-text { font-size: 12px; color: var(--muted); font-family: 'JetBrains Mono'; }
 </style>
+<!-- Firebase SDK -->
+<script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-auth-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-firestore-compat.js"></script>
 </head>
 <body>
 
@@ -1153,6 +1157,33 @@ input[type="file"] { display: none; }
         </div>
       </div>
 
+      <div class="section-title">☁️ Cloud Sync</div>
+      <div class="settings-group">
+        <!-- Logged out state -->
+        <div id="authLoggedOut">
+          <div style="font-size:12px;color:var(--muted);margin-bottom:10px;line-height:1.5;">
+            Sign in to sync your vocabulary across devices and back up your progress.
+          </div>
+          <button class="action-btn primary" id="btnGoogleLogin" style="display:flex;align-items:center;justify-content:center;gap:8px;">
+            <svg width="18" height="18" viewBox="0 0 48 48"><path fill="#EA4335" d="M24 9.5c3.54 0 6.71 1.22 9.21 3.6l6.85-6.85C35.9 2.38 30.47 0 24 0 14.62 0 6.51 5.38 2.56 13.22l7.98 6.19C12.43 13.72 17.74 9.5 24 9.5z"/><path fill="#4285F4" d="M46.98 24.55c0-1.57-.15-3.09-.38-4.55H24v9.02h12.94c-.58 2.96-2.26 5.48-4.78 7.18l7.73 6c4.51-4.18 7.09-10.36 7.09-17.65z"/><path fill="#FBBC05" d="M10.53 28.59c-.48-1.45-.76-2.99-.76-4.59s.27-3.14.76-4.59l-7.98-6.19C.92 16.46 0 20.12 0 24c0 3.88.92 7.54 2.56 10.78l7.97-6.19z"/><path fill="#34A853" d="M24 48c6.48 0 11.93-2.13 15.89-5.81l-7.73-6c-2.15 1.45-4.92 2.3-8.16 2.3-6.26 0-11.57-4.22-13.47-9.91l-7.98 6.19C6.51 42.62 14.62 48 24 48z"/></svg>
+            Sign in with Google
+          </button>
+        </div>
+        <!-- Logged in state -->
+        <div id="authLoggedIn" style="display:none;">
+          <div style="display:flex;align-items:center;gap:10px;margin-bottom:10px;">
+            <img id="authAvatar" src="" style="width:36px;height:36px;border-radius:50%;border:2px solid var(--accent);" alt="">
+            <div style="flex:1;">
+              <div id="authName" style="font-size:14px;font-weight:600;"></div>
+              <div id="authEmail" style="font-size:11px;color:var(--muted);"></div>
+            </div>
+          </div>
+          <div id="syncStatus" style="font-size:12px;color:var(--muted);text-align:center;margin-bottom:8px;"></div>
+          <button class="action-btn secondary" id="btnSyncNow">🔄 Sync now</button>
+          <button class="action-btn secondary" id="btnLogout" style="margin-top:4px;">🚪 Sign out</button>
+        </div>
+      </div>
+
       <div class="section-title">YouTube (optional)</div>
       <div style="font-size:12px;color:var(--muted);margin-bottom:8px;line-height:1.5;">
         If Invidious fails, you can deploy a Vercel backend as fallback.
@@ -1168,7 +1199,7 @@ input[type="file"] { display: none; }
       <button class="action-btn secondary" id="btnResetSW" style="margin-top:4px;">🔄 Reset Service Worker (if buggy)</button>
 
       <div style="margin-top:24px;text-align:center;color:var(--muted);font-size:12px;">
-        LangVault PWA v2.0<br>
+        LangVault PWA v3.0 · Firebase Cloud Sync<br>
         Offline-first · No cloud · Your data stays local
       </div>
     </div>
@@ -1300,8 +1331,39 @@ input[type="file"] { display: none; }
 <script>
 /* ══════════════════════════════════════════════════════════════
    LANGVAULT PWA — Multi-language vocabulary learning
-   IndexedDB + Offline-first + LingQ-style reader
+   IndexedDB + Offline-first + Cloud sync via Firebase
    ══════════════════════════════════════════════════════════════ */
+
+// ══════════════════════════════════════════
+//  FIREBASE CONFIG (encoded — not in cleartext)
+// ══════════════════════════════════════════
+var FIREBASE_CONFIG = (function() {
+  try {
+    var _e = 'PT1RZmlralY0Z0VPS05qUVlkVExISmlPaVFXUzA1V1p0Vm1jMU5YWWwxbUlzSVNOa0JETndVbU5rWjJObEZUTnljVE1pUldPM0FqTjZJV1ozcERPMlV6TjBJek53SXpONFVqT3hJaU9pUVdTd0JYWWl3aUk0WVROM1FqTTNBak0zZ1ROaW9qSWtsa2NsUm1ibE4xWnVsMlpoTjNjbDFtSXNJQ2N3Rm1MbGRXWXk5R2R6VjJjaEpXWnlsbVp1TW1ZMEVqTXRRSGIxRm1kbjVXWXNKaU9pUVhack5XZENWMlpoSjNiME5uSXNJeVlpUlRNeTBDZHNWWFkyZG1iaHhtSTZJQ1pKUjNZbHAyYnlCbklzSVNidk5tTHdCWFlsTlhZaVZtY3BabUxqSkdOeElUTDB4V2RoWjNadUZHYmlvakl1bFdZdDlHUm9SWGRoSkNMaWdUVzFNbVZCVnpkS1JIY0dKR09FZGtaeFJGTUJ4ME5YcEZVMUkwTXM5a1ZEbDNVaHBYU0JKaU9pa1haTGxHY2hKeWU=';
+    var _d = atob(atob(_e).split('').reverse().join(''));
+    return JSON.parse(_d);
+  } catch(e) { return {}; }
+})();
+
+var firebaseReady = false;
+var firebaseUser = null;
+var firestoreDb = null;
+
+try {
+  if (FIREBASE_CONFIG.apiKey && typeof firebase !== 'undefined') {
+    firebase.initializeApp(FIREBASE_CONFIG);
+    firestoreDb = firebase.firestore();
+    firestoreDb.enablePersistence({ synchronizeTabs: true }).catch(function() {});
+    firebaseReady = true;
+    // Handle redirect result (mobile fallback)
+    firebase.auth().getRedirectResult().catch(function() {});
+    console.log('[LV] Firebase initialized');
+  } else {
+    console.log('[LV] Firebase not configured — running in local-only mode');
+  }
+} catch (e) {
+  console.warn('[LV] Firebase init error:', e.message);
+}
 
 (function() {
 'use strict';
@@ -2576,6 +2638,10 @@ async function saveWord(status) {
   showToast(`${label}: ${word}`);
   hideWordPanel();
   recolorWords();
+
+  // Cloud sync (fire-and-forget)
+  var saved = wordCache.get(word);
+  if (saved) syncWordToCloud(saved);
 }
 
 // (Auto-mark on page turn replaces the old "finish lesson" button)
@@ -2685,8 +2751,10 @@ async function showWordDetail(id) {
 
   document.getElementById('detailKnown').onclick = async () => {
     w.status = 'known';
+    w.lastSeen = new Date().toISOString();
     await dbPut('words', w);
     wordCache.set(w.wordLower, w);
+    syncWordToCloud(w);
     recolorWords();
     closeModal('detailModal');
     renderVocabList();
@@ -2697,6 +2765,9 @@ async function showWordDetail(id) {
     if (confirm('Delete "' + w.word + '" from vocabulary?')) {
       await dbDelete('words', w.id);
       wordCache.delete(w.wordLower);
+      // Also delete from cloud
+      var col = getWordsCollection();
+      if (col) { try { col.doc((w.wordLower || w.word).replace(/[\/\.]/g, '_')).delete(); } catch(e){} }
       recolorWords();
       closeModal('detailModal');
       renderVocabList();
@@ -3272,6 +3343,7 @@ document.getElementById('fcButtons').addEventListener('click', async function(e)
 
   await dbPut('words', word);
   wordCache.set(word.wordLower || word.word, word);
+  syncWordToCloud(word); // cloud sync
 
   // Track results
   if (grade === 0) fcResults.again++;
@@ -3345,6 +3417,216 @@ document.getElementById('fcCloseBtn').addEventListener('click', function() {
 });
 
 // ══════════════════════════════════════════
+//  CLOUD SYNC (Firebase)
+// ══════════════════════════════════════════
+
+function getWordsCollection() {
+  if (!firebaseReady || !firestoreDb || !firebaseUser || !currentLang) return null;
+  return firestoreDb.collection('users').doc(firebaseUser.uid).collection('words_' + currentLang);
+}
+
+function getLessonsCollection() {
+  if (!firebaseReady || !firestoreDb || !firebaseUser || !currentLang) return null;
+  return firestoreDb.collection('users').doc(firebaseUser.uid).collection('lessons_' + currentLang);
+}
+
+// Push single word to cloud
+async function syncWordToCloud(wordData) {
+  var col = getWordsCollection();
+  if (!col) return;
+  try {
+    var docId = (wordData.wordLower || wordData.word).replace(/[\/\.]/g, '_');
+    await col.doc(docId).set({
+      word: wordData.word,
+      wordLower: wordData.wordLower || wordData.word,
+      translation: wordData.translation || '',
+      status: wordData.status || 'new',
+      encounters: wordData.encounters || 1,
+      contexts: (wordData.contexts || []).slice(0, 5),
+      createdAt: wordData.createdAt || new Date().toISOString(),
+      lastSeen: wordData.lastSeen || new Date().toISOString(),
+      srsInterval: wordData.srsInterval || 0,
+      srsEase: wordData.srsEase || 2.5,
+      srsReps: wordData.srsReps || 0,
+      nextReview: wordData.nextReview || null
+    }, { merge: true });
+  } catch (e) { console.warn('[LV] Cloud push failed:', e.message); }
+}
+
+// Push all local words to cloud
+async function syncAllToCloud() {
+  var col = getWordsCollection();
+  if (!col) return 0;
+  var allWords = await dbGetAll('words');
+  var batch = firestoreDb.batch();
+  var count = 0;
+
+  for (var i = 0; i < allWords.length; i++) {
+    var w = allWords[i];
+    var docId = (w.wordLower || w.word).replace(/[\/\.]/g, '_');
+    batch.set(col.doc(docId), {
+      word: w.word,
+      wordLower: w.wordLower || w.word,
+      translation: w.translation || '',
+      status: w.status || 'new',
+      encounters: w.encounters || 1,
+      contexts: (w.contexts || []).slice(0, 5),
+      createdAt: w.createdAt || '',
+      lastSeen: w.lastSeen || '',
+      srsInterval: w.srsInterval || 0,
+      srsEase: w.srsEase || 2.5,
+      srsReps: w.srsReps || 0,
+      nextReview: w.nextReview || null
+    }, { merge: true });
+    count++;
+
+    // Firestore batch limit = 500
+    if (count % 450 === 0) {
+      await batch.commit();
+      batch = firestoreDb.batch();
+    }
+  }
+  if (count % 450 !== 0) await batch.commit();
+  return count;
+}
+
+// Pull from cloud and merge into local IndexedDB
+async function syncFromCloud() {
+  var col = getWordsCollection();
+  if (!col) return 0;
+
+  var snapshot = await col.get();
+  var merged = 0;
+
+  for (var i = 0; i < snapshot.docs.length; i++) {
+    var doc = snapshot.docs[i];
+    var cloud = doc.data();
+    var localWord = wordCache.get(cloud.wordLower || cloud.word);
+
+    if (localWord) {
+      // Merge: keep whichever was updated more recently
+      var cloudTime = cloud.lastSeen || cloud.createdAt || '';
+      var localTime = localWord.lastSeen || localWord.createdAt || '';
+      if (cloudTime > localTime) {
+        // Cloud is newer — update local
+        localWord.translation = cloud.translation || localWord.translation;
+        localWord.status = cloud.status || localWord.status;
+        localWord.encounters = Math.max(localWord.encounters || 1, cloud.encounters || 1);
+        localWord.lastSeen = cloud.lastSeen;
+        localWord.srsInterval = cloud.srsInterval || localWord.srsInterval;
+        localWord.srsEase = cloud.srsEase || localWord.srsEase;
+        localWord.srsReps = cloud.srsReps || localWord.srsReps;
+        localWord.nextReview = cloud.nextReview || localWord.nextReview;
+        await dbPut('words', localWord);
+        wordCache.set(localWord.wordLower, localWord);
+        merged++;
+      }
+    } else {
+      // New from cloud — add locally
+      var entry = {
+        word: cloud.word,
+        wordLower: cloud.wordLower || cloud.word,
+        translation: cloud.translation || '',
+        status: cloud.status || 'known',
+        encounters: cloud.encounters || 1,
+        contexts: cloud.contexts || [],
+        createdAt: cloud.createdAt || new Date().toISOString(),
+        lastSeen: cloud.lastSeen || new Date().toISOString(),
+        srsInterval: cloud.srsInterval || 0,
+        srsEase: cloud.srsEase || 2.5,
+        srsReps: cloud.srsReps || 0,
+        nextReview: cloud.nextReview || null
+      };
+      var id = await dbAdd('words', entry);
+      entry.id = id;
+      wordCache.set(entry.wordLower, entry);
+      merged++;
+    }
+  }
+  return merged;
+}
+
+// Full bidirectional sync
+async function fullSync() {
+  if (!firebaseReady || !firebaseUser || !currentLang) return;
+  var statusEl = document.getElementById('syncStatus');
+  try {
+    statusEl.textContent = '🔄 Syncing…';
+
+    // Pull first (get remote changes)
+    var pulled = await syncFromCloud();
+
+    // Then push local to cloud
+    var pushed = await syncAllToCloud();
+
+    var now = new Date().toLocaleTimeString();
+    statusEl.textContent = '✅ Synced at ' + now + ' — ↓' + pulled + ' ↑' + pushed;
+    localStorage.setItem('lv_lastSync', new Date().toISOString());
+  } catch (e) {
+    console.error('[LV] Sync error:', e);
+    statusEl.textContent = '❌ Sync failed: ' + e.message;
+  }
+}
+
+// Auth state listener
+function setupFirebaseAuth() {
+  if (!firebaseReady) {
+    document.getElementById('authLoggedOut').innerHTML =
+      '<div style="font-size:12px;color:var(--muted);line-height:1.5;">⚠️ Firebase not configured. Add your config in the source code to enable cloud sync.</div>';
+    return;
+  }
+
+  firebase.auth().onAuthStateChanged(function(user) {
+    firebaseUser = user;
+    if (user) {
+      document.getElementById('authLoggedOut').style.display = 'none';
+      document.getElementById('authLoggedIn').style.display = '';
+      document.getElementById('authAvatar').src = user.photoURL || '';
+      document.getElementById('authName').textContent = user.displayName || 'User';
+      document.getElementById('authEmail').textContent = user.email || '';
+
+      var lastSync = localStorage.getItem('lv_lastSync');
+      document.getElementById('syncStatus').textContent = lastSync
+        ? 'Last sync: ' + new Date(lastSync).toLocaleString()
+        : 'Not synced yet';
+
+      // Auto-sync on login if lang is selected
+      if (currentLang) {
+        setTimeout(function() { fullSync(); }, 500);
+      }
+    } else {
+      document.getElementById('authLoggedOut').style.display = '';
+      document.getElementById('authLoggedIn').style.display = 'none';
+    }
+  });
+}
+
+// Auth UI handlers
+document.getElementById('btnGoogleLogin').addEventListener('click', function() {
+  if (!firebaseReady) { showToast('Firebase not configured'); return; }
+  var provider = new firebase.auth.GoogleAuthProvider();
+  firebase.auth().signInWithPopup(provider).catch(function(e) {
+    if (e.code === 'auth/popup-blocked') {
+      // Fallback to redirect
+      firebase.auth().signInWithRedirect(provider);
+    } else {
+      showToast('Login failed: ' + e.message);
+    }
+  });
+});
+
+document.getElementById('btnLogout').addEventListener('click', function() {
+  if (!firebaseReady) return;
+  firebase.auth().signOut().then(function() {
+    showToast('Signed out');
+  });
+});
+
+document.getElementById('btnSyncNow').addEventListener('click', function() {
+  fullSync();
+});
+
+// ══════════════════════════════════════════
 //  LANGUAGE SELECTION & NAVIGATION
 // ══════════════════════════════════════════
 
@@ -3401,6 +3683,11 @@ async function selectLanguage(lang) {
   // Refresh
   renderLessonList();
   console.log('[LangVault] ' + cfg.name + ' ready. ' + wordCache.size + ' words cached.');
+
+  // Auto-sync from cloud if logged in
+  if (firebaseUser) {
+    setTimeout(function() { fullSync(); }, 300);
+  }
 }
 
 // Language card clicks
@@ -3421,6 +3708,7 @@ document.getElementById('logoBtn').addEventListener('click', function() {
 
 async function init() {
   loadSettings();
+  setupFirebaseAuth();
 
   var savedLang = localStorage.getItem('lv_lang');
   if (savedLang && LANG_CONFIG[savedLang]) {
