@@ -483,6 +483,14 @@ body {
   margin-bottom: 12px;
   display: none;
 }
+#panelDict a {
+  color: var(--accent); font-size: 12px; text-decoration: none;
+  display: inline-flex; align-items: center; gap: 4px;
+  padding: 6px 10px; background: var(--accent-dim); border-radius: 8px;
+  transition: opacity 0.15s;
+}
+#panelDict a:active { opacity: 0.7; }
+#panelDict { margin-bottom: 10px; }
 .panel-actions {
   display: flex;
   gap: 8px;
@@ -918,6 +926,31 @@ input[type="file"] { display: none; }
 .fc-result-big { font-size: 48px; margin-bottom: 12px; }
 .fc-result-text { font-size: 18px; font-weight: 600; margin-bottom: 6px; }
 .fc-result-sub { font-size: 14px; color: var(--muted); }
+
+/* ══════════════════════════════════════════
+   LEVEL SYSTEM
+   ══════════════════════════════════════════ */
+.level-card {
+  background: var(--surface); border-radius: 20px; padding: 24px;
+  text-align: center; margin-bottom: 20px; position: relative; overflow: hidden;
+}
+.level-badge {
+  width: 80px; height: 80px; border-radius: 50%; margin: 0 auto 12px;
+  display: flex; align-items: center; justify-content: center;
+  font-size: 36px; font-weight: 800;
+  background: linear-gradient(135deg, var(--accent), var(--accent-dim));
+  color: #fff; box-shadow: 0 4px 20px rgba(233,69,96,0.3);
+}
+.level-title { font-size: 18px; font-weight: 700; margin-bottom: 2px; }
+.level-subtitle { font-size: 13px; color: var(--muted); margin-bottom: 14px; }
+.level-xp-bar {
+  height: 10px; background: var(--surface2); border-radius: 5px; overflow: hidden; margin-bottom: 6px;
+}
+.level-xp-fill {
+  height: 100%; border-radius: 5px; transition: width 0.5s;
+  background: linear-gradient(90deg, var(--accent), var(--green));
+}
+.level-xp-text { font-size: 12px; color: var(--muted); font-family: 'JetBrains Mono'; }
 </style>
 </head>
 <body>
@@ -939,29 +972,29 @@ input[type="file"] { display: none; }
       <div class="home-view">
         <div class="home-hero">📚</div>
         <div class="home-title"><b>Lang</b><span>Vault</span></div>
-        <div class="home-sub">Apprends du vocabulaire en lisant.<br>Choisis ta langue cible :</div>
+        <div class="home-sub">Learn vocabulary by reading.<br>Pick your target language:</div>
         <div class="lang-cards">
           <button class="lang-card" data-lang="ru">
             <span class="lang-card-flag">🇷🇺</span>
             <div class="lang-card-info">
-              <div class="lang-card-name">Russe</div>
-              <div class="lang-card-desc">Apprendre le russe par la lecture</div>
+              <div class="lang-card-name">Russian</div>
+              <div class="lang-card-desc">Learn Russian through reading</div>
             </div>
             <span class="lang-card-arrow">›</span>
           </button>
-          <button class="lang-card" data-lang="en">
-            <span class="lang-card-flag">🇬🇧</span>
+          <button class="lang-card" data-lang="es">
+            <span class="lang-card-flag">🇪🇸</span>
             <div class="lang-card-info">
-              <div class="lang-card-name">Anglais</div>
-              <div class="lang-card-desc">Improve your English reading</div>
+              <div class="lang-card-name">Spanish</div>
+              <div class="lang-card-desc">Learn Spanish through reading</div>
             </div>
             <span class="lang-card-arrow">›</span>
           </button>
           <button class="lang-card" data-lang="fr">
             <span class="lang-card-flag">🇫🇷</span>
             <div class="lang-card-info">
-              <div class="lang-card-name">Français</div>
-              <div class="lang-card-desc">Enrichir son vocabulaire français</div>
+              <div class="lang-card-name">French</div>
+              <div class="lang-card-desc">Learn French through reading</div>
             </div>
             <span class="lang-card-arrow">›</span>
           </button>
@@ -998,8 +1031,8 @@ input[type="file"] { display: none; }
         <div class="page-progress-bar"><div class="page-progress-fill" id="pageProgressFill" style="width:0%"></div></div>
         <div id="textBody"></div>
         <div class="page-nav">
-          <button class="page-btn" id="btnPrevPage" disabled>← Préc</button>
-          <button class="page-btn next-btn" id="btnNextPage">Suiv →</button>
+          <button class="page-btn" id="btnPrevPage" disabled>← Prev</button>
+          <button class="page-btn next-btn" id="btnNextPage">Next →</button>
         </div>
       </div>
     </div>
@@ -1008,7 +1041,7 @@ input[type="file"] { display: none; }
     <div class="view" id="viewVocab">
       <!-- Vocab mode toggle -->
       <div style="display:flex;gap:8px;margin-bottom:12px;">
-        <button class="chip active" id="btnVocabList" style="flex:1;text-align:center;padding:10px;">📖 Liste</button>
+        <button class="chip active" id="btnVocabList" style="flex:1;text-align:center;padding:10px;">📖 List</button>
         <button class="chip" id="btnVocabFlash" style="flex:1;text-align:center;padding:10px;">🃏 Flashcards</button>
       </div>
 
@@ -1035,13 +1068,13 @@ input[type="file"] { display: none; }
             <div class="fc-option-label">📚 Source</div>
             <div class="fc-option-row" id="fcLessonChips">
               <button class="fc-chip active" data-lesson="all">Tout</button>
-              <button class="fc-chip" data-lesson="saved">Sauvés</button>
-              <button class="fc-chip" data-lesson="due">À réviser</button>
-              <button class="fc-chip" data-lesson="known">Connus</button>
+              <button class="fc-chip" data-lesson="saved">Saved</button>
+              <button class="fc-chip" data-lesson="due">Due</button>
+              <button class="fc-chip" data-lesson="known">Known</button>
             </div>
           </div>
           <div class="fc-option-group">
-            <div class="fc-option-label">🔢 Nombre de cartes</div>
+            <div class="fc-option-label">🔢 Number of cards</div>
             <div class="fc-option-row" id="fcCountChips">
               <button class="fc-chip" data-count="10">10</button>
               <button class="fc-chip active" data-count="20">20</button>
@@ -1050,15 +1083,22 @@ input[type="file"] { display: none; }
             </div>
           </div>
           <div id="fcWordCount" style="text-align:center;font-size:13px;color:var(--muted);margin:8px 0;"></div>
-          <button class="fc-start-btn" id="fcStartBtn">▶ Commencer la révision</button>
+          <button class="fc-start-btn" id="fcStartBtn">▶ Start review</button>
         </div>
-      </div>
-
       </div>
     </div>
 
     <!-- ── STATS ── -->
     <div class="view" id="viewStats">
+      <!-- Level Card -->
+      <div class="level-card" id="levelCard">
+        <div class="level-badge" id="levelBadge">1</div>
+        <div class="level-title" id="levelTitle">Beginner</div>
+        <div class="level-subtitle" id="levelSubtitle">Level 1</div>
+        <div class="level-xp-bar"><div class="level-xp-fill" id="levelXpFill" style="width:0%"></div></div>
+        <div class="level-xp-text" id="levelXpText">0 / 10 000 known words</div>
+      </div>
+
       <div class="stats-grid">
         <div class="stat-card">
           <div class="stat-num c-accent" id="statTotal">0</div>
@@ -1113,19 +1153,19 @@ input[type="file"] { display: none; }
         </div>
       </div>
 
-      <div class="section-title">YouTube (optionnel)</div>
+      <div class="section-title">YouTube (optional)</div>
       <div style="font-size:12px;color:var(--muted);margin-bottom:8px;line-height:1.5;">
-        Si Invidious ne fonctionne pas, tu peux déployer un backend Vercel comme fallback.
+        If Invidious fails, you can deploy a Vercel backend as fallback.
       </div>
       <input type="url" id="vercelUrlInput" placeholder="https://rusvault-api.vercel.app" style="width:100%;padding:12px;background:var(--surface);border:1px solid var(--border);border-radius:10px;color:var(--text);font-family:inherit;font-size:14px;outline:none;margin-bottom:8px;">
-      <button class="action-btn secondary" id="btnSaveVercel">💾 Sauvegarder URL Vercel</button>
+      <button class="action-btn secondary" id="btnSaveVercel">💾 Save Vercel URL</button>
 
       <div class="section-title">Data</div>
       <button class="action-btn secondary" id="btnExport">📤 Export Database (JSON)</button>
       <button class="action-btn secondary" id="btnImport">📥 Import Database (JSON)</button>
       <input type="file" id="importDbInput" accept=".json">
       <button class="action-btn danger" id="btnClear">🗑 Clear All Data</button>
-      <button class="action-btn secondary" id="btnResetSW" style="margin-top:4px;">🔄 Reset Service Worker (si bugs)</button>
+      <button class="action-btn secondary" id="btnResetSW" style="margin-top:4px;">🔄 Reset Service Worker (if buggy)</button>
 
       <div style="margin-top:24px;text-align:center;color:var(--muted);font-size:12px;">
         LangVault PWA v2.0<br>
@@ -1166,16 +1206,16 @@ input[type="file"] { display: none; }
     <div class="fc-card" id="fcCard">
       <div class="fc-card-word" id="fcWord">—</div>
       <button class="fc-speak-btn" id="fcSpeak">🔊</button>
-      <div class="fc-card-hint" id="fcHint">Tap pour révéler</div>
+      <div class="fc-card-hint" id="fcHint">Tap to reveal</div>
       <div class="fc-card-answer" id="fcAnswer" style="display:none;">—</div>
       <div class="fc-card-ctx" id="fcCtx" style="display:none;"></div>
     </div>
   </div>
   <div class="fc-buttons" id="fcButtons" style="display:none;">
-    <button class="fc-btn fc-btn-again" data-grade="0">Oublié<span>&lt;1m</span></button>
-    <button class="fc-btn fc-btn-hard" data-grade="1">Difficile<span id="fcHardInt">1j</span></button>
-    <button class="fc-btn fc-btn-good" data-grade="2">Bien<span id="fcGoodInt">3j</span></button>
-    <button class="fc-btn fc-btn-easy" data-grade="3">Facile<span id="fcEasyInt">7j</span></button>
+    <button class="fc-btn fc-btn-again" data-grade="0">Again<span>&lt;1m</span></button>
+    <button class="fc-btn fc-btn-hard" data-grade="1">Hard<span id="fcHardInt">1j</span></button>
+    <button class="fc-btn fc-btn-good" data-grade="2">Good<span id="fcGoodInt">3j</span></button>
+    <button class="fc-btn fc-btn-easy" data-grade="3">Easy<span id="fcEasyInt">7j</span></button>
   </div>
 </div>
 
@@ -1192,6 +1232,7 @@ input[type="file"] { display: none; }
     <div class="panel-alts" id="panelAlts"></div>
     <div class="panel-ctx" id="panelCtx"></div>
     <div class="panel-sent" id="panelSent"></div>
+    <div id="panelDict" style="display:none;margin-top:6px;"></div>
     <div class="panel-actions">
       <button class="panel-btn btn-save" id="panelSave">💾 Save</button>
       <button class="panel-btn btn-known" id="panelKnown">✓ Known</button>
@@ -1203,8 +1244,8 @@ input[type="file"] { display: none; }
 <!-- ══ Paste Modal ══ -->
 <div class="modal-overlay" id="pasteModal">
   <div class="modal">
-    <h2>📄 Paste Russian text</h2>
-    <textarea id="pasteInput" placeholder="Collez votre texte ici…"></textarea>
+    <h2>📄 Paste text</h2>
+    <textarea id="pasteInput" placeholder="Paste your text here…"></textarea>
     <input type="text" id="pasteTitle" placeholder="Title (optional)">
     <button class="action-btn primary" id="pasteSubmit">Open Text</button>
     <button class="action-btn secondary" style="margin-top:8px" onclick="closeModal('pasteModal')">Cancel</button>
@@ -1217,23 +1258,23 @@ input[type="file"] { display: none; }
     <h2>🎥 YouTube → LangVault</h2>
 
     <div style="margin-bottom:14px;">
-      <div style="font-size:14px;font-weight:600;margin-bottom:6px;">Option 1 — Colle l'URL</div>
+      <div style="font-size:14px;font-weight:600;margin-bottom:6px;">Option 1 — Paste URL</div>
       <input type="url" id="ytUrl" placeholder="https://youtube.com/watch?v=…">
-      <button class="action-btn primary" id="ytSubmitUrl" style="margin-bottom:0;">🔍 Chercher les sous-titres</button>
+      <button class="action-btn primary" id="ytSubmitUrl" style="margin-bottom:0;">🔍 Fetch subtitles</button>
       <div id="ytStatus" style="font-size:12px;color:var(--muted);text-align:center;min-height:18px;margin-top:6px;"></div>
     </div>
 
     <div style="background:var(--surface2);border-radius:10px;padding:10px 12px;margin-bottom:10px;line-height:1.5;">
-      <div style="font-size:13px;font-weight:600;margin-bottom:4px;">Option 2 — Copier-coller manuel</div>
+      <div style="font-size:13px;font-weight:600;margin-bottom:4px;">Option 2 — Manual paste</div>
       <div style="font-size:12px;color:var(--muted);">
-        YouTube → <b>⋯</b> sous la vidéo → <b>Afficher la transcription</b> → Copier tout → Coller ici ↓
+        YouTube → <b>⋯</b> under the video → <b>Show transcript</b> → Copy all → Paste here ↓
       </div>
     </div>
 
-    <textarea id="ytText" placeholder="Colle le transcript russe ici…" style="min-height:120px;"></textarea>
-    <input type="text" id="ytTitle" placeholder="Titre (optionnel)">
-    <button class="action-btn primary" id="ytSubmitText">📄 Importer le texte</button>
-    <button class="action-btn secondary" style="margin-top:8px" onclick="closeModal('ytModal')">Annuler</button>
+    <textarea id="ytText" placeholder="Paste transcript here…" style="min-height:120px;"></textarea>
+    <input type="text" id="ytTitle" placeholder="Title (optional)">
+    <button class="action-btn primary" id="ytSubmitText">📄 Import text</button>
+    <button class="action-btn secondary" style="margin-top:8px" onclick="closeModal('ytModal')">Cancel</button>
   </div>
 </div>
 
@@ -1242,6 +1283,7 @@ input[type="file"] { display: none; }
   <div class="modal">
     <div class="detail-word" id="detailWord">—</div>
     <div class="detail-trans" id="detailTrans">—</div>
+    <div id="detailDict" style="margin:8px 0;"></div>
     <div class="detail-meta" id="detailMeta"></div>
     <div class="detail-ctx-list" id="detailContexts"></div>
     <div style="display:flex;gap:8px;margin-top:16px;">
@@ -1268,38 +1310,38 @@ input[type="file"] { display: none; }
 var LANG_CONFIG = {
   ru: {
     flag: '🇷🇺',
-    name: 'Russe',
+    name: 'Russian',
     wordRegex: /([а-яА-ЯёЁ]+)/g,
     wordTest: /[а-яА-ЯёЁ]/,
     voicePrefix: 'ru',
     ttsLang: 'ru-RU',
     translateFrom: 'ru',
-    translateTo: 'fr',
-    importLabel: 'Importer un texte russe',
+    translateTo: 'en',
+    importLabel: 'Import Russian text',
     dbName: 'rusvault'
   },
-  en: {
-    flag: '🇬🇧',
-    name: 'Anglais',
-    wordRegex: /([a-zA-Z'-]+)/g,
-    wordTest: /[a-zA-Z]/,
-    voicePrefix: 'en',
-    ttsLang: 'en-US',
-    translateFrom: 'en',
-    translateTo: 'fr',
-    importLabel: 'Import an English text',
-    dbName: 'langvault_en'
+  es: {
+    flag: '🇪🇸',
+    name: 'Spanish',
+    wordRegex: /([a-zA-ZáéíóúüñÁÉÍÓÚÜÑ'-]+)/g,
+    wordTest: /[a-zA-ZáéíóúüñÁÉÍÓÚÜÑ]/,
+    voicePrefix: 'es',
+    ttsLang: 'es-ES',
+    translateFrom: 'es',
+    translateTo: 'en',
+    importLabel: 'Import Spanish text',
+    dbName: 'langvault_es'
   },
   fr: {
     flag: '🇫🇷',
-    name: 'Français',
+    name: 'French',
     wordRegex: /([a-zA-ZàâäéèêëïîôùûüÿçœæÀÂÄÉÈÊËÏÎÔÙÛÜŸÇŒÆ'-]+)/g,
     wordTest: /[a-zA-ZàâäéèêëïîôùûüÿçœæÀÂÄÉÈÊËÏÎÔÙÛÜŸÇŒÆ]/,
     voicePrefix: 'fr',
     ttsLang: 'fr-FR',
     translateFrom: 'fr',
     translateTo: 'en',
-    importLabel: 'Importer un texte français',
+    importLabel: 'Import French text',
     dbName: 'langvault_fr'
   }
 };
@@ -1568,12 +1610,12 @@ document.getElementById('pdfInput').addEventListener('change', async (e) => {
   const file = e.target.files[0];
   if (!file) return;
 
-  showToast('📕 Extraction du PDF…');
+  showToast('📕 Extracting PDF…');
 
   try {
     var arrayBuffer = await file.arrayBuffer();
     if (typeof pdfjsLib === 'undefined') {
-      showToast('❌ PDF.js non chargé. Vérifie ta connexion.');
+      showToast('❌ PDF.js not loaded. Check your connection.');
       return;
     }
     pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
@@ -1589,16 +1631,16 @@ document.getElementById('pdfInput').addEventListener('change', async (e) => {
 
     fullText = fullText.trim();
     if (fullText.length < 10) {
-      showToast('❌ Pas de texte trouvé dans le PDF');
+      showToast('❌ No text found in PDF');
       return;
     }
 
     currentLessonId = null;
     loadText(fullText, file.name.replace('.pdf', ''));
-    showToast('✓ PDF importé ! (' + pdf.numPages + ' pages)');
+    showToast('✓ PDF imported ! (' + pdf.numPages + ' pages)');
   } catch (err) {
     console.error('[PDF]', err);
-    showToast('❌ Erreur PDF: ' + err.message);
+    showToast('❌ PDF error: ' + err.message);
   }
   e.target.value = '';
 });
@@ -1615,7 +1657,7 @@ document.getElementById('ytSubmitUrl').addEventListener('click', async function(
   var videoId = extractYTId(url);
   if (!videoId) { showToast('❌ URL invalide'); return; }
 
-  status.textContent = '⏳ Recherche des sous-titres russes…';
+  status.textContent = '⏳ Searching for subtitles…';
 
   try {
     var subs = await fetchYTSubtitles(videoId);
@@ -1627,13 +1669,13 @@ document.getElementById('ytSubmitUrl').addEventListener('click', async function(
       document.getElementById('ytUrl').value = '';
       document.getElementById('ytTitle').value = '';
       status.textContent = '';
-      showToast('✓ Sous-titres importés !');
+      showToast('✓ Subtitles imported !');
     } else {
-      status.textContent = '⚠️ Pas de sous-titres russes trouvés. Essaie le copier-coller.';
+      status.textContent = '⚠️ No subtitles found. Try copy-paste instead.';
     }
   } catch (err) {
     console.error('[RusVault YT]', err);
-    status.textContent = '⚠️ ' + (err.message || 'Échec') + '. Essaie le copier-coller.';
+    status.textContent = '⚠️ ' + (err.message || 'Failed') + '. Try copy-paste instead.';
   }
 });
 
@@ -1697,7 +1739,7 @@ async function fetchYTSubtitles(videoId) {
 
   for (var i = 0; i < instances.length; i++) {
     var base = instances[i];
-    status.textContent = '🔍 Tentative ' + (i + 1) + '/' + instances.length + '…';
+    status.textContent = '🔍 Attempt ' + (i + 1) + '/' + instances.length + '…';
 
     try {
       // Step 1: List available captions
@@ -1709,7 +1751,7 @@ async function fetchYTSubtitles(videoId) {
 
       // Find caption in target language
       var targetLang = currentLang || 'ru';
-      var langLabels = { ru: ['русск', 'russian'], en: ['english', 'англ'], fr: ['french', 'français', 'franc'] };
+      var langLabels = { ru: ['русск', 'russian'], es: ['spanish', 'español', 'espagn'], fr: ['french', 'français', 'franc'] };
       var target = null;
       for (var c = 0; c < captions.length; c++) {
         var cap = captions[c];
@@ -1746,7 +1788,7 @@ async function fetchYTSubtitles(videoId) {
       // Parse VTT to plain text
       var parsed = parseVTT(subText);
       if (parsed && parsed.length > 20) {
-        status.textContent = '📝 Sous-titres trouvés !';
+        status.textContent = '📝 Subtitles found !';
         return parsed;
       }
     } catch (e) {
@@ -1758,20 +1800,20 @@ async function fetchYTSubtitles(videoId) {
   var vercelUrl = localStorage.getItem('rusvault_vercel_url');
   if (vercelUrl) {
     try {
-      status.textContent = '🔄 Tentative via backend Vercel…';
+      status.textContent = '🔄 Attempt via Vercel backend…';
       vercelUrl = vercelUrl.replace(/\/+$/, '');
       var vResp = await fetchWithTimeout(vercelUrl + '/api/subs?v=' + videoId + '&lang=' + (currentLang || 'ru'), {}, 25000);
       if (vResp.ok) {
         var vData = await vResp.json();
         if (vData.ok && vData.text && vData.text.length > 20) {
-          status.textContent = '📝 Trouvé via Vercel !';
+          status.textContent = '📝 Found via Vercel !';
           return vData.text;
         }
       }
     } catch (e) { /* Vercel also failed */ }
   }
 
-  throw new Error('Aucune instance n\'a pu récupérer les sous-titres');
+  throw new Error('No instance could\'fetch subtitles');
 }
 
 // Parse VTT subtitle format to plain text
@@ -1878,7 +1920,7 @@ async function renderLessonList() {
     return (b.lastOpenedAt || b.createdAt).localeCompare(a.lastOpenedAt || a.createdAt);
   });
 
-  var html = '<div style="font-size:14px;font-weight:700;margin-bottom:10px;">📚 Mes leçons</div>';
+  var html = '<div style="font-size:14px;font-weight:700;margin-bottom:10px;">📚 My lessons</div>';
 
   for (var i = 0; i < lessons.length; i++) {
     var l = lessons[i];
@@ -1903,12 +1945,12 @@ async function renderLessonList() {
     var dateStr = '';
     try {
       var d = new Date(l.lastOpenedAt || l.createdAt);
-      dateStr = d.toLocaleDateString('fr-FR', { day: 'numeric', month: 'short' });
+      dateStr = d.toLocaleDateString('en-US', { day: 'numeric', month: 'short' });
     } catch (e) {}
 
     html += '<div class="lesson-card" data-lesson-id="' + l.id + '">';
     html += '<div class="lesson-card-title">' + escHtml(l.title) + '</div>';
-    html += '<div class="lesson-card-meta"><span>' + dateStr + '</span><span>' + unique.length + ' mots</span></div>';
+    html += '<div class="lesson-card-meta"><span>' + dateStr + '</span><span>' + unique.length + ' words</span></div>';
     var pageLabel = (l.currentPage > 0) ? ' · p.' + (l.currentPage + 1) : '';
     html += '<div class="lesson-card-progress">';
     html += '<span>🔵 ' + newC + '</span>';
@@ -1918,7 +1960,7 @@ async function renderLessonList() {
     html += '</div>';
     html += '<div class="lesson-card-bar"><div class="lesson-card-bar-fill" style="width:' + pctKnown + '%;background:var(--green);"></div></div>';
     html += '<div class="lesson-card-actions">';
-    html += '<button class="lesson-btn-resume" data-resume="' + l.id + '">▶ Reprendre</button>';
+    html += '<button class="lesson-btn-resume" data-resume="' + l.id + '">▶ Resume</button>';
     html += '<button class="lesson-btn-delete" data-del="' + l.id + '">🗑</button>';
     html += '</div>';
     html += '</div>';
@@ -1940,10 +1982,10 @@ async function renderLessonList() {
     btn.addEventListener('click', async function(e) {
       e.stopPropagation();
       var id = parseInt(this.dataset.del);
-      if (confirm('Supprimer cette leçon ?')) {
+      if (confirm('Delete this lesson?')) {
         await deleteLesson(id);
         renderLessonList();
-        showToast('Leçon supprimée');
+        showToast('Lesson deleted');
       }
     });
   });
@@ -2116,7 +2158,7 @@ function updatePageNav() {
     nextBtn.style.color = '#fff';
     nextBtn.style.borderColor = 'var(--green)';
   } else {
-    nextBtn.textContent = 'Suiv →';
+    nextBtn.textContent = 'Next →';
     nextBtn.disabled = false;
     nextBtn.classList.add('next-btn');
     nextBtn.style.background = '';
@@ -2199,11 +2241,11 @@ async function savePagePosition() {
 // ── Page navigation ──
 document.getElementById('btnNextPage').addEventListener('click', async function() {
   var count = await autoMarkPageBlueWords();
-  if (count > 0) showToast('✓ ' + count + ' mot' + (count > 1 ? 's' : '') + ' → connus');
+  if (count > 0) showToast('✓ ' + count + ' word' + (count > 1 ? 's' : '') + ' → known');
 
   if (currentPage >= pages.length - 1) {
     // Last page — finish lesson
-    showToast('🎉 Leçon terminée !');
+    showToast('🎉 Lesson complete!');
     setTimeout(function() {
       document.getElementById('importArea').style.display = '';
       document.getElementById('readerContent').classList.remove('has-text');
@@ -2252,7 +2294,7 @@ function setupSwipe() {
     if (dx < 0 && currentPage < pages.length - 1) {
       // Swipe left = next page
       var count = await autoMarkPageBlueWords();
-      if (count > 0) showToast('✓ ' + count + ' mot' + (count > 1 ? 's' : '') + ' → connus');
+      if (count > 0) showToast('✓ ' + count + ' word' + (count > 1 ? 's' : '') + ' → known');
       showPage(currentPage + 1);
     } else if (dx > 0 && currentPage > 0) {
       // Swipe right = previous page
@@ -2297,6 +2339,8 @@ function showWordPanel(word, ctx) {
   document.getElementById('panelWord').textContent = word;
   document.getElementById('panelTrans').innerHTML = '<span class="spinner"></span>';
   document.getElementById('panelAlts').innerHTML = '';
+  document.getElementById('panelDict').style.display = 'none';
+  document.getElementById('panelDict').innerHTML = '';
   document.getElementById('panelCtx').textContent = ctx ? `« ${ctx} »` : '';
   document.getElementById('panelSent').style.display = 'none';
   document.getElementById('panelSent').textContent = '';
@@ -2374,132 +2418,114 @@ async function fetchTranslation(word, sentence) {
   var cfg = getLangConfig();
   var sl = cfg.translateFrom;
   var tl = cfg.translateTo;
+  var translation = '';
+  var altsHtml = '';
+
+  // Strategy 1: Google Translate direct (fastest, most reliable)
   try {
-    var translation = '';
-    var altsHtml = '';
+    var gp = 'client=gtx&sl=' + sl + '&tl=' + tl + '&dt=t&dt=bd&q=' + encodeURIComponent(word);
+    var gr = await fetchWithTimeout('https://translate.googleapis.com/translate_a/single?' + gp, {}, 5000);
+    var gd = await gr.json();
+    if (gd && gd[0]) {
+      for (var gi = 0; gi < gd[0].length; gi++) {
+        if (gd[0][gi] && gd[0][gi][0]) translation += gd[0][gi][0];
+      }
+    }
+    if (gd && gd[1]) {
+      for (var ai = 0; ai < gd[1].length; ai++) {
+        var entry = gd[1][ai];
+        if (entry[0]) altsHtml += '<b>' + entry[0] + '</b> ';
+        if (entry[1]) altsHtml += entry[1].slice(0, 4).join(', ');
+        altsHtml += '<br>';
+      }
+    }
+  } catch (e) { console.log('[LV] Google Translate failed:', e.message); }
 
-    // Strategy 1: Lingva Translate (Google Translate proxy — no rate limit)
-    var lingvaInstances = [
-      'https://lingva.ml',
-      'https://lingva.thedaviddelta.com',
-      'https://translate.plausibility.cloud'
-    ];
+  // Strategy 2: MyMemory (free, 5000 words/day)
+  if (!translation) {
+    try {
+      var mmUrl = 'https://api.mymemory.translated.net/get?q=' + encodeURIComponent(word) + '&langpair=' + sl + '|' + tl;
+      var mr = await fetchWithTimeout(mmUrl, {}, 5000);
+      if (mr.ok) {
+        var md = await mr.json();
+        if (md.responseData && md.responseData.translatedText) {
+          translation = md.responseData.translatedText;
+        }
+        if (md.matches && md.matches.length > 1) {
+          var seen = {};
+          for (var mi = 0; mi < Math.min(md.matches.length, 5); mi++) {
+            var mt = md.matches[mi].translation;
+            if (mt && !seen[mt] && mt !== translation) {
+              seen[mt] = true;
+              altsHtml += mt + ', ';
+            }
+          }
+          if (altsHtml && !altsHtml.includes('<b>')) altsHtml = altsHtml.slice(0, -2);
+        }
+      }
+    } catch (e) { console.log('[LV] MyMemory failed:', e.message); }
+  }
 
+  // Strategy 3: Lingva (community proxies, often down — last resort)
+  if (!translation) {
+    var lingvaInstances = ['https://lingva.thedaviddelta.com', 'https://lingva.ml'];
     for (var li = 0; li < lingvaInstances.length; li++) {
       try {
         var lUrl = lingvaInstances[li] + '/api/v1/' + sl + '/' + tl + '/' + encodeURIComponent(word);
-        var lr = await fetchWithTimeout(lUrl, {}, 4000);
+        var lr = await fetchWithTimeout(lUrl, {}, 3000);
         if (lr.ok) {
           var ld = await lr.json();
-          if (ld.translation) {
-            translation = ld.translation;
-            break;
-          }
+          if (ld.translation) { translation = ld.translation; break; }
         }
       } catch (e) { /* try next */ }
     }
+  }
 
-    // Strategy 2: MyMemory (free, 5000 words/day)
-    if (!translation) {
-      try {
-        var mmUrl = 'https://api.mymemory.translated.net/get?q=' + encodeURIComponent(word) + '&langpair=' + sl + '|' + tl;
-        var mr = await fetchWithTimeout(mmUrl, {}, 4000);
-        if (mr.ok) {
-          var md = await mr.json();
-          if (md.responseData && md.responseData.translatedText) {
-            translation = md.responseData.translatedText;
-          }
-          // Alternatives from matches
-          if (md.matches && md.matches.length > 1) {
-            var seen = {};
-            for (var mi = 0; mi < Math.min(md.matches.length, 5); mi++) {
-              var mt = md.matches[mi].translation;
-              if (mt && !seen[mt] && mt !== translation) {
-                seen[mt] = true;
-                altsHtml += mt + ', ';
-              }
-            }
-            if (altsHtml) altsHtml = altsHtml.slice(0, -2);
-          }
-        }
-      } catch (e) { /* continue */ }
-    }
+  // Update UI
+  document.getElementById('panelTrans').textContent = translation || '—';
+  document.getElementById('panelTrans').dataset.value = translation || '';
+  if (altsHtml) {
+    document.getElementById('panelAlts').innerHTML = altsHtml;
+  }
 
-    // Strategy 3: Google Translate direct (last resort)
-    if (!translation) {
-      try {
-        var gp = 'client=gtx&sl=' + sl + '&tl=' + tl + '&dt=t&dt=bd&q=' + encodeURIComponent(word);
-        var gr = await fetchWithTimeout('https://translate.googleapis.com/translate_a/single?' + gp, {}, 4000);
-        var gd = await gr.json();
-        if (gd && gd[0]) {
-          for (var gi = 0; gi < gd[0].length; gi++) {
-            if (gd[0][gi] && gd[0][gi][0]) translation += gd[0][gi][0];
-          }
-        }
-        if (gd && gd[1]) {
-          altsHtml = '';
-          for (var ai = 0; ai < gd[1].length; ai++) {
-            var entry = gd[1][ai];
-            if (entry[0]) altsHtml += '<b>' + entry[0] + '</b> ';
-            if (entry[1]) altsHtml += entry[1].slice(0, 4).join(', ');
-            altsHtml += '<br>';
-          }
-        }
-      } catch (e) { /* give up */ }
-    }
-
-    document.getElementById('panelTrans').textContent = translation || '—';
-    document.getElementById('panelTrans').dataset.value = translation || '';
-    if (altsHtml) {
-      document.getElementById('panelAlts').innerHTML = altsHtml;
-    }
-
-    // Sentence translation (MyMemory — more reliable than Google direct)
-    if (sentence && sentence.length > word.length + 5) {
-      try {
-        var sq = sentence.substring(0, 300);
-        var sentTrans = '';
-
-        // Try Lingva first for sentence
-        for (var si = 0; si < lingvaInstances.length; si++) {
-          try {
-            var slUrl = lingvaInstances[si] + '/api/v1/' + sl + '/' + tl + '/' + encodeURIComponent(sq);
-            var slr = await fetchWithTimeout(slUrl, {}, 4000);
-            if (slr.ok) {
-              var sld = await slr.json();
-              if (sld.translation) { sentTrans = sld.translation; break; }
-            }
-          } catch (e) { /* next */ }
-        }
-
-        // Fallback to MyMemory for sentence
-        if (!sentTrans) {
-          var smUrl = 'https://api.mymemory.translated.net/get?q=' + encodeURIComponent(sq) + '&langpair=' + sl + '|' + tl;
-          var smr = await fetchWithTimeout(smUrl, {}, 4000);
-          if (smr.ok) {
-            var smd = await smr.json();
-            if (smd.responseData && smd.responseData.translatedText) {
-              sentTrans = smd.responseData.translatedText;
-            }
-          }
-        }
-
-        if (sentTrans) {
-          document.getElementById('panelSent').textContent = '📖 ' + sentTrans;
-          document.getElementById('panelSent').style.display = 'block';
-        }
-      } catch (e) { /* no sentence translation */ }
-    }
-
-  } catch (err) {
-    // Offline — try cached
-    var cached = wordCache.get(word);
-    if (cached && cached.translation) {
-      document.getElementById('panelTrans').textContent = cached.translation;
-      document.getElementById('panelTrans').dataset.value = cached.translation;
+  // Dictionary link
+  var dictEl = document.getElementById('panelDict');
+  if (dictEl) {
+    if (currentLang === 'ru') {
+      dictEl.innerHTML = '<a href="https://en.openrussian.org/ru/' + encodeURIComponent(word) + '" target="_blank" rel="noopener">📖 OpenRussian — base form, accent, declension</a>';
     } else {
-      document.getElementById('panelTrans').textContent = '(hors ligne)';
-      document.getElementById('panelTrans').dataset.value = '';
+      dictEl.innerHTML = '<a href="https://en.wiktionary.org/wiki/' + encodeURIComponent(word) + '" target="_blank" rel="noopener">📖 Wiktionary — full entry</a>';
+    }
+    dictEl.style.display = 'block';
+  }
+
+  // Sentence translation
+  if (sentence && sentence.length > word.length + 5) {
+    var sq = sentence.substring(0, 300);
+    var sentTrans = '';
+    try {
+      var sgp = 'client=gtx&sl=' + sl + '&tl=' + tl + '&dt=t&q=' + encodeURIComponent(sq);
+      var sgr = await fetchWithTimeout('https://translate.googleapis.com/translate_a/single?' + sgp, {}, 5000);
+      var sgd = await sgr.json();
+      if (sgd && sgd[0]) {
+        for (var sgi = 0; sgi < sgd[0].length; sgi++) {
+          if (sgd[0][sgi] && sgd[0][sgi][0]) sentTrans += sgd[0][sgi][0];
+        }
+      }
+    } catch (e) {}
+    if (!sentTrans) {
+      try {
+        var smUrl = 'https://api.mymemory.translated.net/get?q=' + encodeURIComponent(sq) + '&langpair=' + sl + '|' + tl;
+        var smr = await fetchWithTimeout(smUrl, {}, 5000);
+        if (smr.ok) {
+          var smd = await smr.json();
+          if (smd.responseData && smd.responseData.translatedText) sentTrans = smd.responseData.translatedText;
+        }
+      } catch (e) {}
+    }
+    if (sentTrans) {
+      document.getElementById('panelSent').textContent = '📖 ' + sentTrans;
+      document.getElementById('panelSent').style.display = 'block';
     }
   }
 }
@@ -2616,7 +2642,37 @@ async function showWordDetail(id) {
   if (!w) return;
 
   document.getElementById('detailWord').textContent = w.word;
-  document.getElementById('detailTrans').textContent = w.translation || '—';
+  document.getElementById('detailTrans').textContent = w.translation || '⏳ loading…';
+
+  // Fetch translation if missing
+  if (!w.translation) {
+    try {
+      var cfg = getLangConfig();
+      var gp = 'client=gtx&sl=' + cfg.translateFrom + '&tl=' + cfg.translateTo + '&dt=t&q=' + encodeURIComponent(w.word);
+      var gr = await fetchWithTimeout('https://translate.googleapis.com/translate_a/single?' + gp, {}, 4000);
+      var gd = await gr.json();
+      var trans = '';
+      if (gd && gd[0]) { for (var gi = 0; gi < gd[0].length; gi++) { if (gd[0][gi] && gd[0][gi][0]) trans += gd[0][gi][0]; } }
+      if (trans) {
+        w.translation = trans;
+        await dbPut('words', w);
+        wordCache.set(w.wordLower, w);
+        document.getElementById('detailTrans').textContent = trans;
+      } else {
+        document.getElementById('detailTrans').textContent = '—';
+      }
+    } catch (e) {
+      document.getElementById('detailTrans').textContent = '(offline)';
+    }
+  }
+
+  // Dictionary link
+  var detailDictEl = document.getElementById('detailDict');
+  if (currentLang === 'ru') {
+    detailDictEl.innerHTML = '<a href="https://en.openrussian.org/ru/' + encodeURIComponent(w.word) + '" target="_blank" rel="noopener" style="color:var(--accent);font-size:12px;text-decoration:none;display:inline-flex;align-items:center;gap:4px;padding:6px 10px;background:var(--accent-dim);border-radius:8px;">📖 OpenRussian — base form, accent, declension</a>';
+  } else {
+    detailDictEl.innerHTML = '<a href="https://en.wiktionary.org/wiki/' + encodeURIComponent(w.word) + '" target="_blank" rel="noopener" style="color:var(--accent);font-size:12px;text-decoration:none;display:inline-flex;align-items:center;gap:4px;padding:6px 10px;background:var(--accent-dim);border-radius:8px;">📖 Wiktionary — full entry</a>';
+  }
 
   const statusLabel = { new: 'New', saved: 'Saved', learning: 'Learning', known: 'Known', ignored: 'Ignored' };
   document.getElementById('detailMeta').innerHTML = `
@@ -2655,12 +2711,73 @@ async function showWordDetail(id) {
 //  STATS
 // ══════════════════════════════════════════
 
+// ── Level System ──
+var LEVELS = [
+  { min: 0,     name: 'Beginner',        emoji: '🌱' },
+  { min: 1000,  name: 'Novice',          emoji: '📗' },
+  { min: 2000,  name: 'Apprentice',      emoji: '📘' },
+  { min: 5000,  name: 'Intermediate',    emoji: '⚡' },
+  { min: 10000, name: 'Advanced',        emoji: '🔥' },
+  { min: 20000, name: 'Proficient',      emoji: '💎' },
+  { min: 30000, name: 'Expert',          emoji: '🏅' },
+  { min: 50000, name: 'Master',          emoji: '👑' },
+  { min: 70000, name: 'Virtuoso',        emoji: '🌟' },
+  { min: 90000, name: 'Legend',          emoji: '🏆' }
+];
+
+function getLevelInfo(knownCount) {
+  var lvl = 0;
+  for (var i = LEVELS.length - 1; i >= 0; i--) {
+    if (knownCount >= LEVELS[i].min) { lvl = i; break; }
+  }
+  var current = LEVELS[lvl];
+  var next = LEVELS[lvl + 1] || null;
+  var progress = 0;
+  var xpText = '';
+
+  if (next) {
+    var range = next.min - current.min;
+    var inRange = knownCount - current.min;
+    progress = Math.min((inRange / range) * 100, 100);
+    xpText = knownCount.toLocaleString() + ' / ' + next.min.toLocaleString() + ' known words';
+  } else {
+    progress = 100;
+    xpText = knownCount.toLocaleString() + ' known words · MAX';
+  }
+
+  return {
+    level: lvl + 1,
+    name: current.name,
+    emoji: current.emoji,
+    progress: progress,
+    xpText: xpText
+  };
+}
+
+function renderLevel(knownCount) {
+  var info = getLevelInfo(knownCount);
+  document.getElementById('levelBadge').textContent = info.emoji;
+  document.getElementById('levelTitle').textContent = info.name;
+  document.getElementById('levelSubtitle').textContent = 'Level ' + info.level;
+  document.getElementById('levelXpFill').style.width = info.progress + '%';
+  document.getElementById('levelXpText').textContent = info.xpText;
+
+  // Color gradient based on level
+  var colors = ['#e94560','#e94560','#3b82f6','#3b82f6','#f59e0b','#f59e0b','#10b981','#10b981','#8b5cf6','#ffd700'];
+  var c = colors[info.level - 1] || '#e94560';
+  document.getElementById('levelBadge').style.background = 'linear-gradient(135deg, ' + c + ', ' + c + '44)';
+  document.getElementById('levelBadge').style.boxShadow = '0 4px 20px ' + c + '40';
+}
+
 async function renderStats() {
   const words = await dbGetAll('words');
   const total = words.length;
   const newW = words.filter(w => w.status === 'new').length;
   const learning = words.filter(w => w.status === 'saved' || w.status === 'learning').length;
   const known = words.filter(w => w.status === 'known').length;
+
+  // Render level
+  renderLevel(known + learning);
 
   document.getElementById('statTotal').textContent = total;
   document.getElementById('statNew').textContent = newW;
@@ -2835,10 +2952,10 @@ function showToast(msg) {
     }
     if (url) {
       localStorage.setItem('rusvault_vercel_url', url);
-      showToast('✓ URL Vercel sauvegardée !');
+      showToast('✓ Vercel URL saved !');
     } else {
       localStorage.removeItem('rusvault_vercel_url');
-      showToast('URL Vercel supprimée');
+      showToast('Vercel URL removed');
     }
   });
 })();
@@ -2905,9 +3022,8 @@ async function getFcCandidateWords() {
   var candidates = [];
 
   if (lessonFilter === 'all') {
-    // All words that have a translation (saved, learning, known — not ignored)
     candidates = allWords.filter(function(w) {
-      return w.status !== 'ignored' && w.translation;
+      return w.status !== 'ignored' && w.status !== 'new';
     });
   } else if (lessonFilter === 'saved') {
     candidates = allWords.filter(function(w) {
@@ -2915,13 +3031,12 @@ async function getFcCandidateWords() {
     });
   } else if (lessonFilter === 'known') {
     candidates = allWords.filter(function(w) {
-      return w.status === 'known' && w.translation;
+      return w.status === 'known';
     });
   } else if (lessonFilter === 'due') {
     var now = Date.now();
     candidates = allWords.filter(function(w) {
-      if (w.status === 'ignored') return false;
-      if (!w.translation) return false;
+      if (w.status === 'ignored' || w.status === 'new') return false;
       if (!w.nextReview) return (w.status === 'saved' || w.status === 'learning');
       return new Date(w.nextReview).getTime() <= now;
     });
@@ -2936,7 +3051,7 @@ async function getFcCandidateWords() {
         lessonWords[matches[m].toLowerCase()] = true;
       }
       candidates = allWords.filter(function(w) {
-        return lessonWords[w.wordLower || w.word] && w.status !== 'ignored' && w.translation;
+        return lessonWords[w.wordLower || w.word] && w.status !== 'ignored' && w.status !== 'new';
       });
     }
   }
@@ -2953,9 +3068,9 @@ function updateFcWordCount() {
 
     var msg = '';
     if (total === 0) {
-      msg = '⚠️ Aucun mot disponible. Sauvegarde des mots en lisant pour les réviser ici !';
+      msg = '⚠️ No words available. Save words while reading to review them here!';
     } else {
-      msg = actual + ' carte' + (actual > 1 ? 's' : '') + ' disponible' + (actual > 1 ? 's' : '') + ' sur ' + total;
+      msg = actual + ' card' + (actual > 1 ? 's' : '') + ' available out of ' + total;
     }
     document.getElementById('fcWordCount').textContent = msg;
     document.getElementById('fcStartBtn').disabled = (actual === 0);
@@ -3031,7 +3146,7 @@ var fcResults = { again: 0, hard: 0, good: 0, easy: 0 };
 
 document.getElementById('fcStartBtn').addEventListener('click', async function() {
   var candidates = await getFcCandidateWords();
-  if (candidates.length === 0) { showToast('Aucun mot à réviser'); return; }
+  if (candidates.length === 0) { showToast('No words to review'); return; }
 
   var countChip = document.querySelector('#fcCountChips .fc-chip.active');
   var maxCount = countChip ? countChip.dataset.count : '20';
@@ -3093,14 +3208,33 @@ function showFcCard() {
 }
 
 // Reveal on card tap
-document.getElementById('fcCard').addEventListener('click', function() {
+document.getElementById('fcCard').addEventListener('click', async function() {
   if (fcRevealed || fcIndex >= fcDeck.length) return;
   fcRevealed = true;
 
   var word = fcDeck[fcIndex];
   document.getElementById('fcHint').style.display = 'none';
   document.getElementById('fcAnswer').style.display = '';
-  document.getElementById('fcAnswer').textContent = word.translation || '(pas de traduction)';
+
+  if (word.translation) {
+    document.getElementById('fcAnswer').textContent = word.translation;
+  } else {
+    document.getElementById('fcAnswer').textContent = '⏳ loading…';
+    try {
+      var cfg = getLangConfig();
+      var gp = 'client=gtx&sl=' + cfg.translateFrom + '&tl=' + cfg.translateTo + '&dt=t&q=' + encodeURIComponent(word.word || word.wordLower);
+      var gr = await fetchWithTimeout('https://translate.googleapis.com/translate_a/single?' + gp, {}, 4000);
+      var gd = await gr.json();
+      var trans = '';
+      if (gd && gd[0]) { for (var gi = 0; gi < gd[0].length; gi++) { if (gd[0][gi] && gd[0][gi][0]) trans += gd[0][gi][0]; } }
+      word.translation = trans || '—';
+      document.getElementById('fcAnswer').textContent = word.translation;
+      await dbPut('words', word);
+      wordCache.set(word.wordLower || word.word, word);
+    } catch (e) {
+      document.getElementById('fcAnswer').textContent = '(offline)';
+    }
+  }
 
   if (word.contexts && word.contexts.length > 0) {
     document.getElementById('fcCtx').style.display = '';
@@ -3164,7 +3298,7 @@ function showFcResults() {
   document.getElementById('fcCardArea').innerHTML =
     '<div class="fc-result">' +
       '<div class="fc-result-big">' + emoji + '</div>' +
-      '<div class="fc-result-text">' + successRate + '% de réussite</div>' +
+      '<div class="fc-result-text">' + successRate + '% success rate</div>' +
       '<div class="fc-result-sub">' +
         '❌ ' + fcResults.again + '  ·  🟡 ' + fcResults.hard + '  ·  ✅ ' + fcResults.good + '  ·  ⭐ ' + fcResults.easy +
       '</div>' +
@@ -3172,7 +3306,7 @@ function showFcResults() {
 
   document.getElementById('fcButtons').style.display = 'none';
   document.getElementById('fcProgressFill').style.width = '100%';
-  document.getElementById('fcProgressText').textContent = 'Terminé !';
+  document.getElementById('fcProgressText').textContent = 'Done!';
 }
 
 // Close flashcard session
@@ -3183,7 +3317,7 @@ document.getElementById('fcCloseBtn').addEventListener('click', function() {
     '<div class="fc-card" id="fcCard">' +
       '<div class="fc-card-word" id="fcWord">—</div>' +
       '<button class="fc-speak-btn" id="fcSpeak">🔊</button>' +
-      '<div class="fc-card-hint" id="fcHint">Tap pour révéler</div>' +
+      '<div class="fc-card-hint" id="fcHint">Tap to reveal</div>' +
       '<div class="fc-card-answer" id="fcAnswer" style="display:none;">—</div>' +
       '<div class="fc-card-ctx" id="fcCtx" style="display:none;"></div>' +
     '</div>';
@@ -3195,7 +3329,7 @@ document.getElementById('fcCloseBtn').addEventListener('click', function() {
     var word = fcDeck[fcIndex];
     document.getElementById('fcHint').style.display = 'none';
     document.getElementById('fcAnswer').style.display = '';
-    document.getElementById('fcAnswer').textContent = word.translation || '(pas de traduction)';
+    document.getElementById('fcAnswer').textContent = word.translation || '(no translation)';
     if (word.contexts && word.contexts.length > 0) {
       document.getElementById('fcCtx').style.display = '';
       document.getElementById('fcCtx').textContent = '« ' + word.contexts[0].substring(0, 120) + ' »';
@@ -3308,7 +3442,7 @@ if ('serviceWorker' in navigator) {
 
 // Reset SW button
 document.getElementById('btnResetSW').addEventListener('click', async function() {
-  if (!('serviceWorker' in navigator)) { showToast('Pas de Service Worker'); return; }
+  if (!('serviceWorker' in navigator)) { showToast('No Service Worker'); return; }
   try {
     var regs = await navigator.serviceWorker.getRegistrations();
     for (var i = 0; i < regs.length; i++) {
@@ -3318,10 +3452,10 @@ document.getElementById('btnResetSW').addEventListener('click', async function()
     for (var j = 0; j < keys.length; j++) {
       await caches.delete(keys[j]);
     }
-    showToast('✓ Reset OK ! Rechargement…');
+    showToast('✓ Reset OK ! Reloading…');
     setTimeout(function() { window.location.reload(); }, 1000);
   } catch (e) {
-    showToast('Erreur: ' + e.message);
+    showToast('Error: ' + e.message);
   }
 });
 
