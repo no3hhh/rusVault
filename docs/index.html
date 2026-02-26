@@ -1992,7 +1992,9 @@ async function loadText(text, title, startPage) {
       currentPage: 0
     };
     var id = await dbAdd('lessons', lesson);
+    lesson.id = id;
     currentLessonId = id;
+    syncLessonToCloud(lesson); // cloud sync
     // Show CEFR toast
     if (cefr.level && cefr.level !== '?') {
       showToast('📊 Difficulty: ' + cefr.level + ' (score ' + cefr.score + '/100)');
@@ -2025,6 +2027,11 @@ function openLesson(lesson) {
 }
 
 async function deleteLesson(id) {
+  // Delete from cloud too
+  var col = getLessonsCollection();
+  if (col) {
+    try { await col.doc('lesson_' + id).delete(); } catch(e) {}
+  }
   return new Promise(function(resolve, reject) {
     var t = db.transaction('lessons', 'readwrite');
     var req = t.objectStore('lessons').delete(id);
@@ -2484,6 +2491,7 @@ async function savePagePosition() {
       les.currentPage = currentPage;
       les.lastOpenedAt = new Date().toISOString();
       await dbPut('lessons', les);
+      syncLessonToCloud(les); // fire-and-forget
     }
   } catch (e) {}
 }
@@ -3734,6 +3742,89 @@ async function syncFromCloud() {
   return merged;
 }
 
+// Push single lesson to cloud
+async function syncLessonToCloud(lesson) {
+  var col = getLessonsCollection();
+  if (!col) return;
+  try {
+    var docId = 'lesson_' + (lesson.id || Date.now());
+    // Truncate text to 900KB to stay under Firestore 1MB doc limit
+    var text = lesson.text || '';
+    if (text.length > 900000) text = text.substring(0, 900000);
+    await col.doc(docId).set({
+      localId: lesson.id,
+      title: lesson.title || 'Text',
+      text: text,
+      cefr: lesson.cefr || null,
+      createdAt: lesson.createdAt || new Date().toISOString(),
+      lastOpenedAt: lesson.lastOpenedAt || new Date().toISOString(),
+      currentPage: lesson.currentPage || 0
+    }, { merge: true });
+  } catch (e) { console.warn('[LV] Lesson cloud push failed:', e.message); }
+}
+
+// Push all lessons to cloud
+async function syncAllLessonsToCloud() {
+  var col = getLessonsCollection();
+  if (!col) return 0;
+  var lessons = await dbGetAll('lessons');
+  var count = 0;
+  // Lessons can be big, so no batching — one at a time
+  for (var i = 0; i < lessons.length; i++) {
+    await syncLessonToCloud(lessons[i]);
+    count++;
+  }
+  return count;
+}
+
+// Pull lessons from cloud
+async function syncLessonsFromCloud() {
+  var col = getLessonsCollection();
+  if (!col) return 0;
+  var snapshot = await col.get();
+  var localLessons = await dbGetAll('lessons');
+  var merged = 0;
+
+  // Build lookup by title+createdAt to detect duplicates
+  var localMap = {};
+  for (var j = 0; j < localLessons.length; j++) {
+    var key = (localLessons[j].title || '') + '|' + (localLessons[j].createdAt || '');
+    localMap[key] = localLessons[j];
+  }
+
+  for (var i = 0; i < snapshot.docs.length; i++) {
+    var cloud = snapshot.docs[i].data();
+    var lookupKey = (cloud.title || '') + '|' + (cloud.createdAt || '');
+    var existing = localMap[lookupKey];
+
+    if (existing) {
+      // Update progress if cloud is newer
+      var cloudTime = cloud.lastOpenedAt || cloud.createdAt || '';
+      var localTime = existing.lastOpenedAt || existing.createdAt || '';
+      if (cloudTime > localTime) {
+        existing.currentPage = cloud.currentPage || existing.currentPage;
+        existing.lastOpenedAt = cloud.lastOpenedAt;
+        if (cloud.cefr) existing.cefr = cloud.cefr;
+        await dbPut('lessons', existing);
+        merged++;
+      }
+    } else {
+      // New from cloud
+      var entry = {
+        title: cloud.title || 'Text',
+        text: cloud.text || '',
+        cefr: cloud.cefr || null,
+        createdAt: cloud.createdAt || new Date().toISOString(),
+        lastOpenedAt: cloud.lastOpenedAt || new Date().toISOString(),
+        currentPage: cloud.currentPage || 0
+      };
+      await dbAdd('lessons', entry);
+      merged++;
+    }
+  }
+  return merged;
+}
+
 // Full bidirectional sync
 async function fullSync() {
   if (!firebaseReady || !firebaseUser || !currentLang) return;
@@ -3742,14 +3833,21 @@ async function fullSync() {
     statusEl.textContent = '🔄 Syncing…';
 
     // Pull first (get remote changes)
-    var pulled = await syncFromCloud();
+    var pulledWords = await syncFromCloud();
+    var pulledLessons = await syncLessonsFromCloud();
 
     // Then push local to cloud
-    var pushed = await syncAllToCloud();
+    var pushedWords = await syncAllToCloud();
+    var pushedLessons = await syncAllLessonsToCloud();
 
     var now = new Date().toLocaleTimeString();
+    var pulled = pulledWords + pulledLessons;
+    var pushed = pushedWords + pushedLessons;
     statusEl.textContent = '✅ Synced at ' + now + ' — ↓' + pulled + ' ↑' + pushed;
     localStorage.setItem('lv_lastSync', new Date().toISOString());
+
+    // Refresh lesson list if visible
+    renderLessonList();
   } catch (e) {
     console.error('[LV] Sync error:', e);
     statusEl.textContent = '❌ Sync failed: ' + e.message;
