@@ -1024,6 +1024,14 @@ input[type="file"] { display: none; }
             </div>
             <span class="lang-card-arrow">›</span>
           </button>
+          <button class="lang-card" data-lang="en">
+            <span class="lang-card-flag">🇬🇧</span>
+            <div class="lang-card-info">
+              <div class="lang-card-name">English</div>
+              <div class="lang-card-desc">Learn English through reading</div>
+            </div>
+            <span class="lang-card-arrow">›</span>
+          </button>
           <button class="lang-card" data-lang="es">
             <span class="lang-card-flag">🇪🇸</span>
             <div class="lang-card-info">
@@ -1193,6 +1201,18 @@ input[type="file"] { display: none; }
             <span id="fontSizeLabel" style="font-family:'JetBrains Mono';font-size:13px;min-width:32px;text-align:center;">18</span>
             <button class="icon-btn" id="fontPlus" style="width:32px;height:32px;font-size:16px;">+</button>
           </div>
+        </div>
+      </div>
+
+      <div class="section-title">🌐 Translation</div>
+      <div class="settings-group">
+        <div class="settings-row">
+          <div>
+            <div class="settings-label">Translate to</div>
+            <div class="settings-desc" id="targetLangDesc">Words will be translated into this language</div>
+          </div>
+          <select id="targetLangSelect" style="padding:8px 12px;background:var(--surface);border:1px solid var(--border);border-radius:10px;color:var(--text);font-family:inherit;font-size:14px;outline:none;min-width:130px;cursor:pointer;">
+          </select>
         </div>
       </div>
 
@@ -1433,6 +1453,18 @@ var LANG_CONFIG = {
     importLabel: 'Import Russian text',
     dbName: 'rusvault'
   },
+  en: {
+    flag: '🇬🇧',
+    name: 'English',
+    wordRegex: /([a-zA-Z'-]+)/g,
+    wordTest: /[a-zA-Z]/,
+    voicePrefix: 'en',
+    ttsLang: 'en-US',
+    translateFrom: 'en',
+    translateTo: 'fr',
+    importLabel: 'Import English text',
+    dbName: 'langvault_en'
+  },
   es: {
     flag: '🇪🇸',
     name: 'Spanish',
@@ -1459,11 +1491,35 @@ var LANG_CONFIG = {
   }
 };
 
+// Available target languages (for translation)
+var TARGET_LANGS = {
+  en: { flag: '🇬🇧', name: 'English' },
+  fr: { flag: '🇫🇷', name: 'French' },
+  ru: { flag: '🇷🇺', name: 'Russian' },
+  es: { flag: '🇪🇸', name: 'Spanish' },
+  de: { flag: '🇩🇪', name: 'German' },
+  pt: { flag: '🇵🇹', name: 'Portuguese' },
+  it: { flag: '🇮🇹', name: 'Italian' },
+  zh: { flag: '🇨🇳', name: 'Chinese' },
+  ja: { flag: '🇯🇵', name: 'Japanese' },
+  ko: { flag: '🇰🇷', name: 'Korean' },
+  ar: { flag: '🇸🇦', name: 'Arabic' }
+};
+
 var currentLang = null;  // set when user picks a language
 var WORD_REGEX = /([а-яА-ЯёЁ]+)/g;  // default fallback
 var WORD_TEST = /[а-яА-ЯёЁ]/;
 
-function getLangConfig() { return LANG_CONFIG[currentLang] || LANG_CONFIG.ru; }
+function getLangConfig() {
+  var base = LANG_CONFIG[currentLang] || LANG_CONFIG.ru;
+  // Shallow copy to avoid mutating original
+  var cfg = {};
+  for (var k in base) cfg[k] = base[k];
+  // Override translateTo with user preference if set
+  var saved = localStorage.getItem('lv_targetLang_' + currentLang);
+  if (saved) cfg.translateTo = saved;
+  return cfg;
+}
 
 // Safari-compatible fetch timeout (no AbortController — uses Promise.race)
 function fetchWithTimeout(url, opts, ms) {
@@ -1682,6 +1738,39 @@ function updateReaderFont() {
   }
 }
 
+// ── Target Language Selector ──
+function populateTargetLangSelect() {
+  var select = document.getElementById('targetLangSelect');
+  if (!select || !currentLang) return;
+  var cfg = LANG_CONFIG[currentLang];
+  var saved = localStorage.getItem('lv_targetLang_' + currentLang) || cfg.translateTo;
+
+  select.innerHTML = '';
+  var keys = Object.keys(TARGET_LANGS);
+  for (var i = 0; i < keys.length; i++) {
+    var code = keys[i];
+    // Don't show source language as target
+    if (code === currentLang) continue;
+    var tl = TARGET_LANGS[code];
+    var opt = document.createElement('option');
+    opt.value = code;
+    opt.textContent = tl.flag + ' ' + tl.name;
+    if (code === saved) opt.selected = true;
+    select.appendChild(opt);
+  }
+  document.getElementById('targetLangDesc').textContent =
+    LANG_CONFIG[currentLang].name + ' → ' + (TARGET_LANGS[saved] || {}).name;
+}
+
+document.getElementById('targetLangSelect').addEventListener('change', function() {
+  var code = this.value;
+  if (!currentLang || !code) return;
+  localStorage.setItem('lv_targetLang_' + currentLang, code);
+  document.getElementById('targetLangDesc').textContent =
+    LANG_CONFIG[currentLang].name + ' → ' + (TARGET_LANGS[code] || {}).name;
+  showToast('✓ Translating to ' + (TARGET_LANGS[code] || {}).name);
+});
+
 // ══════════════════════════════════════════
 //  READER — Import & Display
 // ══════════════════════════════════════════
@@ -1864,7 +1953,7 @@ async function fetchYTSubtitles(videoId) {
 
       // Find caption in target language
       var targetLang = currentLang || 'ru';
-      var langLabels = { ru: ['русск', 'russian'], es: ['spanish', 'español', 'espagn'], fr: ['french', 'français', 'franc'] };
+      var langLabels = { ru: ['русск', 'russian'], en: ['english', 'anglais', 'inglés'], es: ['spanish', 'español', 'espagn'], fr: ['french', 'français', 'franc'] };
       var target = null;
       for (var c = 0; c < captions.length; c++) {
         var cap = captions[c];
@@ -4088,6 +4177,7 @@ async function selectLanguage(lang) {
 
   // Refresh
   renderLessonList();
+  populateTargetLangSelect();
   console.log('[LangVault] ' + cfg.name + ' ready. ' + wordCache.size + ' words cached.');
 
   // Auto-sync from cloud if logged in
