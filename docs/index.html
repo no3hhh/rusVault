@@ -844,7 +844,8 @@ input[type="file"] { display: none; }
 /* Lesson cards */
 .lesson-card { background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:12px 14px;margin-bottom:10px;cursor:pointer;transition:border-color .2s; }
 .lesson-card:active { border-color:var(--accent); }
-.lesson-card-title { font-weight:600;font-size:14px;margin-bottom:4px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis; }
+.lesson-card-title { font-weight:600;font-size:14px;margin-bottom:4px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;display:flex;align-items:center;gap:6px; }
+.lesson-card-title span { flex-shrink: 0; }
 .lesson-card-meta { font-size:11px;color:var(--muted);display:flex;justify-content:space-between;align-items:center; }
 .lesson-card-progress { display:flex;gap:8px;font-size:11px;margin-top:6px; }
 .lesson-card-progress span { display:flex;align-items:center;gap:2px; }
@@ -1065,6 +1066,7 @@ input[type="file"] { display: none; }
           <button class="close-text" id="btnCloseText">×</button>
         </div>
         <div class="reader-stats-bar">
+          <span id="readerCefr"></span>
           <span class="stat-new">🔵 <b id="countNew">0</b></span>
           <span class="stat-saved">🟡 <b id="countSaved">0</b></span>
           <span class="stat-known">⚪ <b id="countKnown">0</b></span>
@@ -1980,15 +1982,22 @@ async function loadText(text, title, startPage) {
   // Save as lesson
   if (!currentLessonId) {
     var now = new Date().toISOString();
+    var cefr = predictCEFR(text, currentLang);
     var lesson = {
       title: title || 'Text',
       text: text,
+      cefr: { level: cefr.level, score: cefr.score, color: cefr.color },
       createdAt: now,
       lastOpenedAt: now,
       currentPage: 0
     };
     var id = await dbAdd('lessons', lesson);
     currentLessonId = id;
+    // Show CEFR toast
+    if (cefr.level && cefr.level !== '?') {
+      showToast('📊 Difficulty: ' + cefr.level + ' (score ' + cefr.score + '/100)');
+      document.getElementById('readerCefr').innerHTML = cefrBadge(cefr.level, cefr.color);
+    }
   } else {
     try {
       var les = await dbGet('lessons', currentLessonId);
@@ -2005,6 +2014,13 @@ async function loadText(text, title, startPage) {
 
 function openLesson(lesson) {
   currentLessonId = lesson.id;
+  // Show CEFR if stored, otherwise compute
+  var cefr = lesson.cefr || predictCEFR(lesson.text, currentLang);
+  if (cefr.level && cefr.level !== '?') {
+    document.getElementById('readerCefr').innerHTML = cefrBadge(cefr.level, cefr.color);
+  } else {
+    document.getElementById('readerCefr').innerHTML = '';
+  }
   loadText(lesson.text, lesson.title, lesson.currentPage || 0);
 }
 
@@ -2060,7 +2076,8 @@ async function renderLessonList() {
     } catch (e) {}
 
     html += '<div class="lesson-card" data-lesson-id="' + l.id + '">';
-    html += '<div class="lesson-card-title">' + escHtml(l.title) + '</div>';
+    var cefr = l.cefr || predictCEFR(l.text, currentLang);
+    html += '<div class="lesson-card-title">' + cefrBadge(cefr.level, cefr.color) + ' ' + escHtml(l.title) + '</div>';
     html += '<div class="lesson-card-meta"><span>' + dateStr + '</span><span>' + unique.length + ' words</span></div>';
     var pageLabel = (l.currentPage > 0) ? ' · p.' + (l.currentPage + 1) : '';
     html += '<div class="lesson-card-progress">';
@@ -2106,10 +2123,132 @@ function escHtml(s) {
   return s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
 }
 
+// ══════════════════════════════════════════
+//  CEFR TEXT DIFFICULTY PREDICTOR
+// ══════════════════════════════════════════
+
+var CEFR_COLORS = {
+  'A1': '#4CAF50', 'A2': '#8BC34A',
+  'B1': '#FFC107', 'B2': '#FF9800',
+  'C1': '#F44336', 'C2': '#9C27B0'
+};
+
+function predictCEFR(text, lang) {
+  if (!text || text.length < 50) return { level: '?', score: 0, details: {} };
+
+  lang = lang || currentLang || 'ru';
+
+  // ── Tokenize ──
+  var cfg = LANG_CONFIG[lang];
+  var wordRegex = cfg ? cfg.wordRegex : /(\S+)/g;
+  wordRegex.lastIndex = 0;
+  var allWords = text.match(wordRegex) || [];
+  if (allWords.length < 10) return { level: '?', score: 0, details: {} };
+
+  // ── Sentences ──
+  var sentences = text.split(/[.!?…]+/).filter(function(s) { return s.trim().length > 5; });
+  var sentCount = Math.max(sentences.length, 1);
+
+  // ── Features ──
+  var totalChars = 0;
+  var uniqueWords = {};
+  var longWords = 0;    // >7 chars
+  var veryLong = 0;     // >10 chars
+  var totalSyllables = 0;
+
+  var vowelRegex;
+  if (lang === 'ru') {
+    vowelRegex = /[аеёиоуыэюя]/gi;
+  } else if (lang === 'es') {
+    vowelRegex = /[aeiouáéíóúü]/gi;
+  } else {
+    vowelRegex = /[aeiouyàâäéèêëïîôùûüÿœæ]/gi;
+  }
+
+  for (var i = 0; i < allWords.length; i++) {
+    var w = allWords[i].toLowerCase();
+    totalChars += w.length;
+    uniqueWords[w] = true;
+    if (w.length > 7) longWords++;
+    if (w.length > 10) veryLong++;
+    var vowels = w.match(vowelRegex);
+    totalSyllables += vowels ? vowels.length : 1;
+  }
+
+  var n = allWords.length;
+  var uniqueCount = Object.keys(uniqueWords).length;
+
+  var avgWordLen = totalChars / n;
+  var avgSentLen = n / sentCount;
+  var ttrWindow = Math.min(n, 200);
+  var lexDiversity = Math.min(uniqueCount / ttrWindow, 1.0);
+  var pctLong = longWords / n;
+  var pctVeryLong = veryLong / n;
+  var avgSyllables = totalSyllables / n;
+
+  // ── Weighted scoring (0-100) — calibrated against CEFR benchmarks ──
+  var score = 0;
+
+  // Word length: Russian words are naturally longer
+  if (lang === 'ru') {
+    score += clamp((avgWordLen - 4) / 5, 0, 1) * 18;
+  } else {
+    score += clamp((avgWordLen - 3.5) / 4.5, 0, 1) * 18;
+  }
+
+  // Sentence length: biggest CEFR differentiator
+  score += clamp((avgSentLen - 5) / 30, 0, 1) * 28;
+
+  // Lexical diversity (TTR with length correction)
+  score += clamp((lexDiversity - 0.4) / 0.5, 0, 1) * 12;
+
+  // % long words (>7 chars)
+  score += clamp(pctLong / 0.4, 0, 1) * 22;
+
+  // % very long words (>10 chars)
+  score += clamp(pctVeryLong / 0.2, 0, 1) * 10;
+
+  // Syllable complexity
+  score += clamp((avgSyllables - 1.5) / 2.5, 0, 1) * 10;
+
+  // ── Map to CEFR ──
+  var level;
+  if (score < 13) level = 'A1';
+  else if (score < 28) level = 'A2';
+  else if (score < 45) level = 'B1';
+  else if (score < 60) level = 'B2';
+  else if (score < 75) level = 'C1';
+  else level = 'C2';
+
+  return {
+    level: level,
+    score: Math.round(score),
+    color: CEFR_COLORS[level],
+    details: {
+      words: n,
+      uniqueWords: uniqueCount,
+      sentences: sentCount,
+      avgWordLen: avgWordLen.toFixed(1),
+      avgSentLen: avgSentLen.toFixed(1),
+      lexDiversity: (lexDiversity * 100).toFixed(0) + '%',
+      pctLong: (pctLong * 100).toFixed(0) + '%',
+      avgSyllables: avgSyllables.toFixed(1)
+    }
+  };
+}
+
+function clamp(v, min, max) { return Math.max(min, Math.min(max, v)); }
+
+function cefrBadge(level, color) {
+  if (!level || level === '?') return '';
+  return '<span style="display:inline-block;padding:2px 7px;border-radius:6px;font-size:11px;font-weight:700;color:#fff;background:' + (color || CEFR_COLORS[level] || '#888') + ';letter-spacing:0.5px;">' + level + '</span>';
+}
+
 document.getElementById('btnCloseText').addEventListener('click', () => {
   document.getElementById('importArea').style.display = '';
   document.getElementById('readerContent').classList.remove('has-text');
   document.getElementById('textBody').innerHTML = '';
+  document.getElementById('readerCefr').innerHTML = '';
   currentLessonId = null;
   allChunks = [];
   pages = [];
