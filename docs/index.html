@@ -1061,6 +1061,7 @@ input[type="file"] { display: none; }
           <button class="import-btn" id="btnFile"><span class="em">📂</span> .txt file</button>
           <button class="import-btn" id="btnPdf"><span class="em">📕</span> PDF</button>
           <button class="import-btn" id="btnYT"><span class="em">🎥</span> YouTube</button>
+          <button class="import-btn" id="btnUrl"><span class="em">🌐</span> URL</button>
         </div>
         <input type="file" id="fileInput" accept=".txt">
         <input type="file" id="pdfInput" accept=".pdf">
@@ -1078,6 +1079,7 @@ input[type="file"] { display: none; }
           <span class="stat-new">🔵 <b id="countNew">0</b></span>
           <span class="stat-saved">🟡 <b id="countSaved">0</b></span>
           <span class="stat-known">⚪ <b id="countKnown">0</b></span>
+          <span style="margin-left:auto;font-size:11px;color:var(--muted);" id="readerWpm"></span>
         </div>
         <div class="page-progress-bar"><div class="page-progress-fill" id="pageProgressFill" style="width:0%"></div></div>
         <div id="textBody"></div>
@@ -1109,6 +1111,25 @@ input[type="file"] { display: none; }
           <button class="chip" data-filter="known">Known</button>
           <button class="chip" data-filter="ignored">Ignored</button>
         </div>
+        <div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:10px;align-items:center;">
+          <select id="vocabSortSelect" style="padding:5px 8px;background:var(--surface);border:1px solid var(--border);border-radius:8px;color:var(--text);font-size:12px;outline:none;">
+            <option value="newest">Newest first</option>
+            <option value="oldest">Oldest first</option>
+            <option value="alpha">A → Z</option>
+            <option value="encounters">Most seen</option>
+            <option value="due">Due soon</option>
+          </select>
+          <select id="vocabDateFilter" style="padding:5px 8px;background:var(--surface);border:1px solid var(--border);border-radius:8px;color:var(--text);font-size:12px;outline:none;">
+            <option value="all">Any time</option>
+            <option value="today">Today</option>
+            <option value="week">This week</option>
+            <option value="month">This month</option>
+          </select>
+          <select id="vocabSourceFilter" style="padding:5px 8px;background:var(--surface);border:1px solid var(--border);border-radius:8px;color:var(--text);font-size:12px;outline:none;">
+            <option value="all">All sources</option>
+          </select>
+        </div>
+        <div style="font-size:11px;color:var(--muted);margin-bottom:8px;" id="vocabCount"></div>
         <div class="word-list" id="wordList"></div>
       </div>
 
@@ -1133,6 +1154,13 @@ input[type="file"] { display: none; }
               <button class="fc-chip" data-count="all">Tout</button>
             </div>
           </div>
+          <div class="fc-option-group">
+            <div class="fc-option-label">💬 Display</div>
+            <div class="fc-option-row" id="fcModeChips">
+              <button class="fc-chip active" data-mode="word">Word only</button>
+              <button class="fc-chip" data-mode="sentence">Sentence</button>
+            </div>
+          </div>
           <div id="fcWordCount" style="text-align:center;font-size:13px;color:var(--muted);margin:8px 0;"></div>
           <button class="fc-start-btn" id="fcStartBtn">▶ Start review</button>
         </div>
@@ -1148,6 +1176,19 @@ input[type="file"] { display: none; }
         <div class="level-subtitle" id="levelSubtitle">Level 1</div>
         <div class="level-xp-bar"><div class="level-xp-fill" id="levelXpFill" style="width:0%"></div></div>
         <div class="level-xp-text" id="levelXpText">0 / 10 000 known words</div>
+      </div>
+
+      <!-- Streak -->
+      <div style="display:flex;align-items:center;gap:12px;padding:14px 16px;background:var(--surface);border-radius:14px;margin-bottom:16px;">
+        <div style="font-size:28px;" id="streakIcon">🔥</div>
+        <div style="flex:1;">
+          <div style="font-size:20px;font-weight:700;" id="streakCount">0</div>
+          <div style="font-size:11px;color:var(--muted);">day streak</div>
+        </div>
+        <div style="text-align:right;">
+          <div style="font-size:13px;font-weight:600;" id="streakBest">Best: 0</div>
+          <div style="font-size:11px;color:var(--muted);" id="streakToday">—</div>
+        </div>
       </div>
 
       <div class="stats-grid">
@@ -1178,6 +1219,8 @@ input[type="file"] { display: none; }
       </div>
       <div class="section-title">Recent Activity</div>
       <div id="activityList" style="display:flex;flex-direction:column;gap:6px;"></div>
+      <div class="section-title" style="margin-top:20px;">📖 Reading Speed</div>
+      <div id="readingSpeedChart" style="background:var(--surface);border-radius:14px;padding:14px;min-height:80px;"></div>
     </div>
 
     <!-- ── SETTINGS ── -->
@@ -1311,6 +1354,7 @@ input[type="file"] { display: none; }
       <div class="fc-card-hint" id="fcHint">Tap to reveal</div>
       <div class="fc-card-answer" id="fcAnswer" style="display:none;">—</div>
       <div class="fc-card-ctx" id="fcCtx" style="display:none;"></div>
+      <div id="fcNotes" style="display:none;font-size:12px;color:var(--muted);margin-top:6px;font-style:italic;"></div>
     </div>
   </div>
   <div class="fc-buttons" id="fcButtons" style="display:none;">
@@ -1381,11 +1425,24 @@ input[type="file"] { display: none; }
 </div>
 
 <!-- ══ Word Detail Modal ══ -->
+<div class="modal-overlay" id="urlModal">
+  <div class="modal">
+    <h2>🌐 Import from URL</h2>
+    <input type="url" id="urlInput" placeholder="https://example.com/article…" style="margin-bottom:8px;">
+    <div id="urlStatus" style="font-size:12px;color:var(--muted);text-align:center;min-height:18px;margin-bottom:8px;"></div>
+    <button class="action-btn primary" id="urlSubmit">📥 Fetch article</button>
+    <button class="action-btn secondary" style="margin-top:8px" onclick="closeModal('urlModal')">Cancel</button>
+  </div>
+</div>
+
 <div class="modal-overlay" id="detailModal">
   <div class="modal">
     <div class="detail-word" id="detailWord">—</div>
     <div class="detail-trans" id="detailTrans">—</div>
     <div id="detailDict" style="margin:8px 0;"></div>
+    <div style="margin:10px 0;">
+      <textarea id="detailNotes" placeholder="Add a note…" style="width:100%;min-height:50px;padding:10px;background:var(--surface);border:1px solid var(--border);border-radius:10px;color:var(--text);font-family:inherit;font-size:13px;resize:vertical;outline:none;box-sizing:border-box;"></textarea>
+    </div>
     <div class="detail-meta" id="detailMeta"></div>
     <div class="detail-ctx-list" id="detailContexts"></div>
     <div style="display:flex;gap:8px;margin-top:16px;">
@@ -1398,6 +1455,11 @@ input[type="file"] { display: none; }
 
 <!-- ══ Toast ══ -->
 <div class="toast" id="toast"></div>
+
+<!-- ══ Offline indicator ══ -->
+<div id="offlineBanner" style="display:none;position:fixed;top:0;left:0;right:0;z-index:9999;background:#F44336;color:#fff;text-align:center;font-size:12px;font-weight:600;padding:4px 0;letter-spacing:0.5px;">
+  ⚡ Offline — changes saved locally, will sync when back online
+</div>
 
 <script>
 /* ══════════════════════════════════════════════════════════════
@@ -1680,7 +1742,7 @@ tabs.forEach(tab => {
     document.getElementById(target).classList.add('active');
 
     if (target === 'viewReader') renderLessonList();
-    if (target === 'viewVocab') renderVocabList();
+    if (target === 'viewVocab') { populateVocabSourceFilter(); renderVocabList(); }
     if (target === 'viewStats') renderStats();
   });
 });
@@ -1777,6 +1839,23 @@ document.getElementById('targetLangSelect').addEventListener('change', function(
 
 // ── Paste ──
 document.getElementById('btnPaste').addEventListener('click', () => openModal('pasteModal'));
+// Auto-fill title from text input
+document.getElementById('pasteInput').addEventListener('input', function() {
+  var titleEl = document.getElementById('pasteTitle');
+  if (titleEl.dataset.manual) return; // user typed manually, don't override
+  var text = this.value.trim();
+  if (!text) { titleEl.value = ''; return; }
+  // First line, trimmed to 60 chars
+  var firstLine = text.split(/[\n\r]/)[0].trim();
+  titleEl.value = firstLine.length > 60 ? firstLine.substring(0, 57) + '…' : firstLine;
+});
+document.getElementById('pasteTitle').addEventListener('input', function() {
+  this.dataset.manual = '1'; // user is typing their own title
+});
+document.getElementById('pasteTitle').addEventListener('focus', function() {
+  this.select(); // easy to edit
+});
+
 document.getElementById('pasteSubmit').addEventListener('click', () => {
   const text = document.getElementById('pasteInput').value.trim();
   if (!text) return;
@@ -1786,6 +1865,7 @@ document.getElementById('pasteSubmit').addEventListener('click', () => {
   closeModal('pasteModal');
   document.getElementById('pasteInput').value = '';
   document.getElementById('pasteTitle').value = '';
+  document.getElementById('pasteTitle').dataset.manual = '';
 });
 
 // ── File ──
@@ -1798,7 +1878,8 @@ document.getElementById('fileInput').addEventListener('change', (e) => {
   const reader = new FileReader();
   reader.onload = (ev) => {
     currentLessonId = null;
-    loadText(ev.target.result, file.name);
+    var cleanName = file.name.replace(/\.[^.]+$/, ''); // remove extension
+    loadText(ev.target.result, cleanName);
   };
   reader.readAsText(file);
   e.target.value = '';
@@ -1895,6 +1976,76 @@ document.getElementById('ytSubmitText').addEventListener('click', function() {
   document.getElementById('ytUrl').value = '';
   document.getElementById('ytTitle').value = '';
   document.getElementById('ytStatus').textContent = '';
+});
+
+// ── URL Import ──
+document.getElementById('btnUrl').addEventListener('click', function() { openModal('urlModal'); });
+document.getElementById('urlSubmit').addEventListener('click', async function() {
+  var url = document.getElementById('urlInput').value.trim();
+  if (!url) { showToast('Paste a URL first'); return; }
+  if (!url.match(/^https?:\/\//)) url = 'https://' + url;
+  var statusEl = document.getElementById('urlStatus');
+  statusEl.textContent = '⏳ Fetching article…';
+
+  try {
+    // Use allorigins as CORS proxy
+    var proxyUrl = 'https://api.allorigins.win/raw?url=' + encodeURIComponent(url);
+    var resp = await fetchWithTimeout(proxyUrl, {}, 15000);
+    if (!resp.ok) throw new Error('HTTP ' + resp.status);
+    var html = await resp.text();
+
+    // Extract text content (basic readability)
+    var parser = new DOMParser();
+    var doc = parser.parseFromString(html, 'text/html');
+
+    // Try to get title
+    var title = '';
+    var titleEl = doc.querySelector('title');
+    if (titleEl) title = titleEl.textContent.trim();
+    var ogTitle = doc.querySelector('meta[property="og:title"]');
+    if (ogTitle && ogTitle.content) title = ogTitle.content;
+
+    // Remove scripts, styles, nav, header, footer, aside
+    doc.querySelectorAll('script,style,nav,header,footer,aside,form,iframe,svg,.sidebar,.menu,.nav,.ad,.advertisement,.cookie').forEach(function(el) { el.remove(); });
+
+    // Try to find main content
+    var contentEl = doc.querySelector('article') ||
+                    doc.querySelector('[role="main"]') ||
+                    doc.querySelector('.post-content, .article-content, .entry-content, .content, main') ||
+                    doc.body;
+
+    // Extract text from paragraphs
+    var paragraphs = contentEl.querySelectorAll('p, h1, h2, h3, h4, li');
+    var texts = [];
+    paragraphs.forEach(function(p) {
+      var t = p.textContent.trim();
+      if (t.length > 20) texts.push(t);
+    });
+
+    var text = texts.join('\n\n');
+    if (text.length < 50) {
+      // Fallback: all text
+      text = contentEl.textContent.replace(/\s+/g, ' ').trim();
+    }
+
+    if (text.length < 50) {
+      statusEl.textContent = '❌ Could not extract enough text';
+      return;
+    }
+
+    title = title || url.replace(/https?:\/\//, '').split('/')[0];
+    if (title.length > 80) title = title.substring(0, 77) + '…';
+
+    currentLessonId = null;
+    loadText(text, title);
+    closeModal('urlModal');
+    document.getElementById('urlInput').value = '';
+    statusEl.textContent = '';
+    showToast('✓ Article imported (' + texts.length + ' paragraphs)');
+  } catch(e) {
+    statusEl.textContent = '❌ Failed: ' + e.message;
+    console.error('[LV] URL import error:', e);
+  }
 });
 
 function extractYTId(url) {
@@ -2341,10 +2492,13 @@ function cefrBadge(level, color) {
 }
 
 document.getElementById('btnCloseText').addEventListener('click', () => {
+  recordReadingSpeed();
+  saveReadingSession();
   document.getElementById('importArea').style.display = '';
   document.getElementById('readerContent').classList.remove('has-text');
   document.getElementById('textBody').innerHTML = '';
   document.getElementById('readerCefr').innerHTML = '';
+  document.getElementById('readerWpm').textContent = '';
   currentLessonId = null;
   allChunks = [];
   pages = [];
@@ -2425,6 +2579,62 @@ function buildPages(text) {
 }
 
 // ── Show a specific page (ebook style — no scroll) ──
+// ══════════════════════════════════════════
+//  READING SPEED TRACKER
+// ══════════════════════════════════════════
+var readingStartTime = null;
+var readingPageWords = 0;
+var readingSessionWpms = [];
+
+function startReadingTimer() {
+  readingStartTime = Date.now();
+  // Count words on current page
+  var chunkIndices = pages[currentPage] || [];
+  readingPageWords = 0;
+  for (var i = 0; i < chunkIndices.length; i++) {
+    var t = allChunks[chunkIndices[i]] || '';
+    var m = t.match(WORD_REGEX);
+    readingPageWords += m ? m.length : 0;
+  }
+}
+
+function recordReadingSpeed() {
+  if (!readingStartTime || readingPageWords < 5) return;
+  var elapsed = (Date.now() - readingStartTime) / 60000; // minutes
+  if (elapsed < 0.05 || elapsed > 30) return; // ignore <3s or >30min (idle)
+  var wpm = Math.round(readingPageWords / elapsed);
+  if (wpm < 5 || wpm > 1500) return; // sanity check
+  readingSessionWpms.push(wpm);
+  // Update live display
+  var avg = Math.round(readingSessionWpms.reduce(function(a,b){return a+b;},0) / readingSessionWpms.length);
+  document.getElementById('readerWpm').textContent = '⚡ ' + avg + ' wpm';
+}
+
+function saveReadingSession() {
+  if (readingSessionWpms.length === 0 || !currentLang) return;
+  var avg = Math.round(readingSessionWpms.reduce(function(a,b){return a+b;},0) / readingSessionWpms.length);
+  var sessions = [];
+  try { sessions = JSON.parse(localStorage.getItem('lv_reading_' + currentLang) || '[]'); } catch(e) {}
+  sessions.push({
+    date: new Date().toISOString(),
+    wpm: avg,
+    pages: readingSessionWpms.length,
+    lessonId: currentLessonId
+  });
+  // Keep last 100 sessions
+  if (sessions.length > 100) sessions = sessions.slice(-100);
+  localStorage.setItem('lv_reading_' + currentLang, JSON.stringify(sessions));
+  // Cloud sync
+  if (firebaseReady && firestoreDb && firebaseUser) {
+    try {
+      firestoreDb.collection('users').doc(firebaseUser.uid)
+        .collection('meta').doc('reading_' + currentLang)
+        .set({ sessions: sessions.slice(-50) }, { merge: true });
+    } catch(e) {}
+  }
+  readingSessionWpms = [];
+}
+
 function showPage(pageIndex) {
   currentPage = pageIndex;
   var body = document.getElementById('textBody');
@@ -2484,6 +2694,8 @@ function showPage(pageIndex) {
     updatePageNav();
     body.classList.remove('page-turning');
     body.classList.add('page-visible');
+    // Start reading timer for this page
+    startReadingTimer();
   }, 80);
 
   savePagePosition();
@@ -2587,16 +2799,19 @@ async function savePagePosition() {
 
 // ── Page navigation ──
 document.getElementById('btnNextPage').addEventListener('click', async function() {
+  recordReadingSpeed(); // track speed before turning
   var count = await autoMarkPageBlueWords();
   if (count > 0) showToast('✓ ' + count + ' word' + (count > 1 ? 's' : '') + ' → known');
 
   if (currentPage >= pages.length - 1) {
     // Last page — finish lesson
+    saveReadingSession();
     showToast('🎉 Lesson complete!');
     setTimeout(function() {
       document.getElementById('importArea').style.display = '';
       document.getElementById('readerContent').classList.remove('has-text');
       document.getElementById('textBody').innerHTML = '';
+      document.getElementById('readerWpm').textContent = '';
       currentLessonId = null;
       allChunks = [];
       pages = [];
@@ -2611,6 +2826,7 @@ document.getElementById('btnNextPage').addEventListener('click', async function(
 });
 
 document.getElementById('btnPrevPage').addEventListener('click', function() {
+  recordReadingSpeed();
   if (currentPage <= 0) return;
   showPage(currentPage - 1);
 });
@@ -2640,11 +2856,13 @@ function setupSwipe() {
 
     if (dx < 0 && currentPage < pages.length - 1) {
       // Swipe left = next page
+      recordReadingSpeed();
       var count = await autoMarkPageBlueWords();
       if (count > 0) showToast('✓ ' + count + ' word' + (count > 1 ? 's' : '') + ' → known');
       showPage(currentPage + 1);
     } else if (dx > 0 && currentPage > 0) {
       // Swipe right = previous page
+      recordReadingSpeed();
       showPage(currentPage - 1);
     }
   }, { passive: true });
@@ -2927,6 +3145,7 @@ async function saveWord(status) {
   // Cloud sync (fire-and-forget)
   var saved = wordCache.get(word);
   if (saved) syncWordToCloud(saved);
+  recordActivity();
 }
 
 // (Auto-mark on page turn replaces the old "finish lesson" button)
@@ -2952,33 +3171,101 @@ document.getElementById('vocabSearch').addEventListener('input', (e) => {
   renderVocabList();
 });
 
+document.getElementById('vocabSortSelect').addEventListener('change', () => renderVocabList());
+document.getElementById('vocabDateFilter').addEventListener('change', () => renderVocabList());
+document.getElementById('vocabSourceFilter').addEventListener('change', () => renderVocabList());
+
+// Populate source filter from lessons
+async function populateVocabSourceFilter() {
+  var sel = document.getElementById('vocabSourceFilter');
+  var lessons = await dbGetAll('lessons');
+  // Keep first option
+  sel.innerHTML = '<option value="all">All sources</option>';
+  for (var i = 0; i < lessons.length; i++) {
+    var opt = document.createElement('option');
+    opt.value = lessons[i].id;
+    opt.textContent = lessons[i].title.length > 25 ? lessons[i].title.substring(0, 22) + '…' : lessons[i].title;
+    sel.appendChild(opt);
+  }
+}
+
 async function renderVocabList() {
   const list = document.getElementById('wordList');
   let words = await dbGetAll('words');
 
-  // Filter
+  // Status filter
   if (vocabFilter !== 'all') {
     words = words.filter(w => w.status === vocabFilter);
   }
+
+  // Text search
   if (vocabQuery) {
     words = words.filter(w =>
       w.word.includes(vocabQuery) ||
-      (w.translation && w.translation.toLowerCase().includes(vocabQuery))
+      (w.translation && w.translation.toLowerCase().includes(vocabQuery)) ||
+      (w.notes && w.notes.toLowerCase().includes(vocabQuery))
     );
   }
 
-  // Sort by newest first
-  words.sort((a, b) => (b.createdAt || '').localeCompare(a.createdAt || ''));
+  // Date filter
+  var dateFilter = document.getElementById('vocabDateFilter').value;
+  if (dateFilter !== 'all') {
+    var now = new Date();
+    var cutoff;
+    if (dateFilter === 'today') cutoff = new Date(now.getFullYear(), now.getMonth(), now.getDate()).toISOString();
+    else if (dateFilter === 'week') cutoff = new Date(now.getTime() - 7 * 86400000).toISOString();
+    else if (dateFilter === 'month') cutoff = new Date(now.getTime() - 30 * 86400000).toISOString();
+    if (cutoff) words = words.filter(w => (w.createdAt || '') >= cutoff);
+  }
+
+  // Source/lesson filter
+  var sourceFilter = document.getElementById('vocabSourceFilter').value;
+  if (sourceFilter !== 'all') {
+    var lessonId = parseInt(sourceFilter);
+    try {
+      var lesson = await dbGet('lessons', lessonId);
+      if (lesson) {
+        var lessonWordSet = {};
+        var lm = lesson.text.match(WORD_REGEX) || [];
+        for (var m = 0; m < lm.length; m++) lessonWordSet[lm[m].toLowerCase()] = true;
+        words = words.filter(w => lessonWordSet[w.wordLower || w.word]);
+      }
+    } catch(e) {}
+  }
+
+  // Sort
+  var sortMode = document.getElementById('vocabSortSelect').value;
+  if (sortMode === 'newest') {
+    words.sort((a, b) => (b.createdAt || '').localeCompare(a.createdAt || ''));
+  } else if (sortMode === 'oldest') {
+    words.sort((a, b) => (a.createdAt || '').localeCompare(b.createdAt || ''));
+  } else if (sortMode === 'alpha') {
+    words.sort((a, b) => (a.word || '').localeCompare(b.word || ''));
+  } else if (sortMode === 'encounters') {
+    words.sort((a, b) => (b.encounters || 1) - (a.encounters || 1));
+  } else if (sortMode === 'due') {
+    var nowMs = Date.now();
+    words.sort((a, b) => {
+      var aT = a.nextReview ? new Date(a.nextReview).getTime() : 0;
+      var bT = b.nextReview ? new Date(b.nextReview).getTime() : 0;
+      return aT - bT;
+    });
+  }
+
+  // Count display
+  var countEl = document.getElementById('vocabCount');
+  if (countEl) countEl.textContent = words.length + ' word' + (words.length !== 1 ? 's' : '');
 
   if (words.length === 0) {
     list.innerHTML = '<div class="empty-state"><div class="big">📚</div>No words yet.<br>Start reading to build your vocabulary!</div>';
+    if (countEl) countEl.textContent = '';
     return;
   }
 
   list.innerHTML = words.map(w => `
     <div class="word-card" data-id="${w.id}">
       <div class="wc-status st-${w.status || 'new'}"></div>
-      <div class="wc-word">${escHtml(w.word)}</div>
+      <div class="wc-word">${escHtml(w.word)}${w.notes ? ' <span style="opacity:0.4;font-size:11px;">📝</span>' : ''}</div>
       <div class="wc-trans">${escHtml(w.translation || '')}</div>
     </div>
   `).join('');
@@ -3030,6 +3317,20 @@ async function showWordDetail(id) {
     <span class="detail-badge b-status">${statusLabel[w.status] || w.status}</span>
     <span class="detail-badge b-encounters">${w.encounters || 1} encounter${(w.encounters||1) > 1 ? 's' : ''}</span>
   `;
+
+  // Notes
+  var notesEl = document.getElementById('detailNotes');
+  notesEl.value = w.notes || '';
+  var noteTimer = null;
+  notesEl.oninput = function() {
+    clearTimeout(noteTimer);
+    noteTimer = setTimeout(async function() {
+      w.notes = notesEl.value.trim();
+      await dbPut('words', w);
+      wordCache.set(w.wordLower, w);
+      syncWordToCloud(w);
+    }, 600); // debounce 600ms
+  };
 
   const ctxHtml = (w.contexts || []).map(c => `<div class="detail-ctx-item">« ${escHtml(c)} »</div>`).join('');
   document.getElementById('detailContexts').innerHTML = ctxHtml || '<div style="color:var(--muted);font-size:13px;">No context saved</div>';
@@ -3125,6 +3426,98 @@ function renderLevel(knownCount) {
   document.getElementById('levelBadge').style.boxShadow = '0 4px 20px ' + c + '40';
 }
 
+// ══════════════════════════════════════════
+//  STREAK TRACKING
+// ══════════════════════════════════════════
+
+function getStreakData() {
+  try {
+    var d = JSON.parse(localStorage.getItem('lv_streak_' + currentLang) || '{}');
+    return { current: d.current || 0, best: d.best || 0, lastDate: d.lastDate || '' };
+  } catch(e) { return { current: 0, best: 0, lastDate: '' }; }
+}
+
+function saveStreakData(data) {
+  localStorage.setItem('lv_streak_' + currentLang, JSON.stringify(data));
+  // Also push to cloud
+  if (firebaseReady && firestoreDb && firebaseUser && currentLang) {
+    try {
+      firestoreDb.collection('users').doc(firebaseUser.uid)
+        .collection('meta').doc('streak_' + currentLang)
+        .set(data, { merge: true });
+    } catch(e) {}
+  }
+}
+
+function recordActivity() {
+  var today = new Date().toISOString().substring(0, 10);
+  var s = getStreakData();
+  if (s.lastDate === today) return; // already active today
+
+  var yesterday = new Date(Date.now() - 86400000).toISOString().substring(0, 10);
+  if (s.lastDate === yesterday) {
+    s.current++;
+  } else if (s.lastDate && s.lastDate < yesterday) {
+    s.current = 1; // streak broken
+  } else {
+    s.current = 1; // first ever
+  }
+  if (s.current > s.best) s.best = s.current;
+  s.lastDate = today;
+  saveStreakData(s);
+}
+
+function displayStreak() {
+  var s = getStreakData();
+  var today = new Date().toISOString().substring(0, 10);
+  document.getElementById('streakCount').textContent = s.current;
+  document.getElementById('streakBest').textContent = 'Best: ' + s.best;
+  document.getElementById('streakIcon').textContent = s.current >= 7 ? '🔥' : s.current >= 3 ? '🔥' : '❄️';
+  document.getElementById('streakIcon').style.filter = s.current >= 7 ? '' : s.current >= 3 ? 'grayscale(0.3)' : 'grayscale(1)';
+  document.getElementById('streakToday').textContent = s.lastDate === today ? '✓ Active today' : 'Not yet today';
+}
+
+async function syncStreakFromCloud() {
+  if (!firebaseReady || !firestoreDb || !firebaseUser || !currentLang) return;
+  try {
+    var doc = await firestoreDb.collection('users').doc(firebaseUser.uid)
+      .collection('meta').doc('streak_' + currentLang).get();
+    if (doc.exists) {
+      var cloud = doc.data();
+      var local = getStreakData();
+      // Keep the better streak
+      if ((cloud.current || 0) > local.current || (cloud.best || 0) > local.best) {
+        local.current = Math.max(local.current, cloud.current || 0);
+        local.best = Math.max(local.best, cloud.best || 0);
+        if (cloud.lastDate > local.lastDate) local.lastDate = cloud.lastDate;
+        localStorage.setItem('lv_streak_' + currentLang, JSON.stringify(local));
+      }
+    }
+  } catch(e) {}
+}
+
+async function syncReadingFromCloud() {
+  if (!firebaseReady || !firestoreDb || !firebaseUser || !currentLang) return;
+  try {
+    var doc = await firestoreDb.collection('users').doc(firebaseUser.uid)
+      .collection('meta').doc('reading_' + currentLang).get();
+    if (doc.exists) {
+      var cloud = doc.data();
+      var local = [];
+      try { local = JSON.parse(localStorage.getItem('lv_reading_' + currentLang) || '[]'); } catch(e) {}
+      // Merge: combine and deduplicate by date
+      var merged = {};
+      local.forEach(function(s) { merged[s.date] = s; });
+      (cloud.sessions || []).forEach(function(s) {
+        if (!merged[s.date] || s.wpm > merged[s.date].wpm) merged[s.date] = s;
+      });
+      var result = Object.values(merged).sort(function(a,b) { return (a.date||'').localeCompare(b.date||''); });
+      if (result.length > 100) result = result.slice(-100);
+      localStorage.setItem('lv_reading_' + currentLang, JSON.stringify(result));
+    }
+  } catch(e) {}
+}
+
 async function renderStats() {
   const words = await dbGetAll('words');
   const total = words.length;
@@ -3134,6 +3527,9 @@ async function renderStats() {
 
   // Render level
   renderLevel(known + learning);
+
+  // Streak
+  displayStreak();
 
   document.getElementById('statTotal').textContent = total;
   document.getElementById('statNew').textContent = newW;
@@ -3170,6 +3566,54 @@ async function renderStats() {
       <span style="font-family:'JetBrains Mono';font-size:13px;font-weight:600;color:var(--accent);min-width:24px;text-align:right;">+${count}</span>
     </div>
   `).join('');
+
+  // Reading speed chart
+  renderReadingChart();
+}
+
+function renderReadingChart() {
+  var chartEl = document.getElementById('readingSpeedChart');
+  if (!chartEl || !currentLang) return;
+  var sessions = [];
+  try { sessions = JSON.parse(localStorage.getItem('lv_reading_' + currentLang) || '[]'); } catch(e) {}
+
+  if (sessions.length === 0) {
+    chartEl.innerHTML = '<div style="color:var(--muted);text-align:center;font-size:13px;padding:10px;">No reading sessions yet. Start reading to track your speed!</div>';
+    return;
+  }
+
+  // Last 20 sessions
+  var recent = sessions.slice(-20);
+  var maxWpm = Math.max.apply(null, recent.map(function(s){return s.wpm;}));
+  var avgWpm = Math.round(recent.reduce(function(a,s){return a+s.wpm;},0) / recent.length);
+
+  var barHtml = '<div style="display:flex;align-items:center;gap:4px;margin-bottom:10px;">';
+  barHtml += '<span style="font-size:24px;font-weight:700;">' + avgWpm + '</span>';
+  barHtml += '<span style="font-size:12px;color:var(--muted);">avg wpm</span>';
+  if (recent.length >= 3) {
+    var firstThird = recent.slice(0, Math.ceil(recent.length/3));
+    var lastThird = recent.slice(-Math.ceil(recent.length/3));
+    var avgFirst = firstThird.reduce(function(a,s){return a+s.wpm;},0)/firstThird.length;
+    var avgLast = lastThird.reduce(function(a,s){return a+s.wpm;},0)/lastThird.length;
+    var diff = Math.round(avgLast - avgFirst);
+    if (diff > 0) barHtml += '<span style="margin-left:auto;color:var(--green);font-size:12px;font-weight:600;">↑ +' + diff + ' wpm</span>';
+    else if (diff < 0) barHtml += '<span style="margin-left:auto;color:#F44336;font-size:12px;font-weight:600;">↓ ' + diff + ' wpm</span>';
+  }
+  barHtml += '</div>';
+
+  barHtml += '<div style="display:flex;align-items:flex-end;gap:3px;height:60px;">';
+  for (var i = 0; i < recent.length; i++) {
+    var pct = maxWpm > 0 ? (recent[i].wpm / maxWpm * 100) : 0;
+    var col = recent[i].wpm >= avgWpm ? 'var(--green)' : 'var(--accent)';
+    var dateLabel = recent[i].date ? recent[i].date.substring(5, 10) : '';
+    barHtml += '<div style="flex:1;display:flex;flex-direction:column;align-items:center;gap:2px;">';
+    barHtml += '<div style="font-size:9px;color:var(--muted);">' + recent[i].wpm + '</div>';
+    barHtml += '<div style="width:100%;min-height:4px;height:' + Math.max(pct, 5) + '%;background:' + col + ';border-radius:3px;transition:height 0.3s;"></div>';
+    barHtml += '</div>';
+  }
+  barHtml += '</div>';
+
+  chartEl.innerHTML = barHtml;
 }
 
 // ══════════════════════════════════════════
@@ -3351,6 +3795,14 @@ function setupChipGroup(containerId, callback) {
 
 setupChipGroup('fcLessonChips', updateFcWordCount);
 setupChipGroup('fcCountChips', updateFcWordCount);
+setupChipGroup('fcModeChips');
+
+var fcSentenceMode = false;
+document.querySelectorAll('#fcModeChips .fc-chip').forEach(function(chip) {
+  chip.addEventListener('click', function() {
+    fcSentenceMode = (chip.dataset.mode === 'sentence');
+  });
+});
 
 async function populateFlashcardSetup() {
   var container = document.getElementById('fcLessonChips');
@@ -3540,10 +3992,20 @@ function showFcCard() {
   var word = fcDeck[fcIndex];
   fcRevealed = false;
 
-  document.getElementById('fcWord').textContent = word.word || word.wordLower;
+  // Sentence mode: show context with word blanked/highlighted
+  var fcWordEl = document.getElementById('fcWord');
+  if (fcSentenceMode && word.contexts && word.contexts.length > 0) {
+    var ctx = word.contexts[0];
+    // Highlight the word in context
+    var re = new RegExp('(' + (word.word || word.wordLower).replace(/[.*+?^${}()|[\]\\]/g, '\\$&') + ')', 'gi');
+    fcWordEl.innerHTML = ctx.replace(re, '<span style="background:var(--accent);color:#fff;padding:1px 4px;border-radius:4px;font-weight:700;">$1</span>');
+  } else {
+    fcWordEl.textContent = word.word || word.wordLower;
+  }
   document.getElementById('fcHint').style.display = '';
   document.getElementById('fcAnswer').style.display = 'none';
   document.getElementById('fcCtx').style.display = 'none';
+  var fcN = document.getElementById('fcNotes'); if (fcN) fcN.style.display = 'none';
   document.getElementById('fcButtons').style.display = 'none';
 
   // Update progress
@@ -3597,6 +4059,17 @@ document.getElementById('fcCard').addEventListener('click', async function() {
     document.getElementById('fcCtx').textContent = '« ' + word.contexts[0].substring(0, 120) + ' »';
   }
 
+  // Show notes if any
+  var fcNotesEl = document.getElementById('fcNotes');
+  if (fcNotesEl) {
+    if (word.notes) {
+      fcNotesEl.style.display = '';
+      fcNotesEl.textContent = '📝 ' + word.notes;
+    } else {
+      fcNotesEl.style.display = 'none';
+    }
+  }
+
   document.getElementById('fcButtons').style.display = '';
 });
 
@@ -3629,6 +4102,7 @@ document.getElementById('fcButtons').addEventListener('click', async function(e)
   await dbPut('words', word);
   wordCache.set(word.wordLower || word.word, word);
   syncWordToCloud(word); // cloud sync
+  recordActivity();
 
   // Track results
   if (grade === 0) fcResults.again++;
@@ -3677,6 +4151,7 @@ document.getElementById('fcCloseBtn').addEventListener('click', function() {
       '<div class="fc-card-hint" id="fcHint">Tap to reveal</div>' +
       '<div class="fc-card-answer" id="fcAnswer" style="display:none;">—</div>' +
       '<div class="fc-card-ctx" id="fcCtx" style="display:none;"></div>' +
+      '<div id="fcNotes" style="display:none;font-size:12px;color:var(--muted);margin-top:6px;font-style:italic;"></div>' +
     '</div>';
 
   // Re-bind card and speak events
@@ -3733,7 +4208,8 @@ async function syncWordToCloud(wordData) {
       srsInterval: wordData.srsInterval || 0,
       srsEase: wordData.srsEase || 2.5,
       srsReps: wordData.srsReps || 0,
-      nextReview: wordData.nextReview || null
+      nextReview: wordData.nextReview || null,
+      notes: wordData.notes || ''
     }, { merge: true });
   } catch (e) { console.warn('[LV] Cloud push failed:', e.message); }
 }
@@ -3761,7 +4237,8 @@ async function syncAllToCloud() {
       srsInterval: w.srsInterval || 0,
       srsEase: w.srsEase || 2.5,
       srsReps: w.srsReps || 0,
-      nextReview: w.nextReview || null
+      nextReview: w.nextReview || null,
+      notes: w.notes || ''
     }, { merge: true });
     count++;
 
@@ -3802,6 +4279,7 @@ async function syncFromCloud() {
         localWord.srsEase = cloud.srsEase || localWord.srsEase;
         localWord.srsReps = cloud.srsReps || localWord.srsReps;
         localWord.nextReview = cloud.nextReview || localWord.nextReview;
+        if (cloud.notes) localWord.notes = cloud.notes;
         await dbPut('words', localWord);
         wordCache.set(localWord.wordLower, localWord);
         merged++;
@@ -3820,7 +4298,8 @@ async function syncFromCloud() {
         srsInterval: cloud.srsInterval || 0,
         srsEase: cloud.srsEase || 2.5,
         srsReps: cloud.srsReps || 0,
-        nextReview: cloud.nextReview || null
+        nextReview: cloud.nextReview || null,
+        notes: cloud.notes || ''
       };
       var id = await dbAdd('words', entry);
       entry.id = id;
@@ -3924,6 +4403,8 @@ async function fullSync() {
     // Pull first (get remote changes)
     var pulledWords = await syncFromCloud();
     var pulledLessons = await syncLessonsFromCloud();
+    await syncStreakFromCloud();
+    await syncReadingFromCloud();
 
     // Then push local to cloud
     var pushedWords = await syncAllToCloud();
@@ -4227,6 +4708,27 @@ if ('serviceWorker' in navigator) {
   });
   navigator.serviceWorker.register('sw.js').catch(function() {});
 }
+
+// ── Offline Indicator ──
+function updateOnlineStatus() {
+  var banner = document.getElementById('offlineBanner');
+  if (navigator.onLine) {
+    banner.style.display = 'none';
+  } else {
+    banner.style.display = '';
+  }
+}
+window.addEventListener('online', function() {
+  updateOnlineStatus();
+  showToast('✅ Back online — syncing…');
+  if (firebaseUser && currentLang) {
+    setTimeout(function() { fullSync(); }, 1000);
+  }
+});
+window.addEventListener('offline', function() {
+  updateOnlineStatus();
+});
+updateOnlineStatus();
 
 // Reset SW button
 document.getElementById('btnResetSW').addEventListener('click', async function() {
