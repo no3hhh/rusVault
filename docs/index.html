@@ -1987,13 +1987,36 @@ document.getElementById('urlSubmit').addEventListener('click', async function() 
   var statusEl = document.getElementById('urlStatus');
   statusEl.textContent = '⏳ Fetching article…';
 
-  try {
-    // Use allorigins as CORS proxy
-    var proxyUrl = 'https://api.allorigins.win/raw?url=' + encodeURIComponent(url);
-    var resp = await fetchWithTimeout(proxyUrl, {}, 15000);
-    if (!resp.ok) throw new Error('HTTP ' + resp.status);
-    var html = await resp.text();
+  // Multiple CORS proxies — try each until one works
+  var proxies = [
+    function(u) { return 'https://api.codetabs.com/v1/proxy?quest=' + encodeURIComponent(u); },
+    function(u) { return 'https://corsproxy.io/?' + encodeURIComponent(u); },
+    function(u) { return 'https://api.allorigins.win/raw?url=' + encodeURIComponent(u); },
+    function(u) { return 'https://thingproxy.freeboard.io/fetch/' + u; }
+  ];
 
+  var html = null;
+  for (var pi = 0; pi < proxies.length; pi++) {
+    try {
+      statusEl.textContent = '⏳ Trying proxy ' + (pi + 1) + '/' + proxies.length + '…';
+      var proxyUrl = proxies[pi](url);
+      var resp = await fetchWithTimeout(proxyUrl, {}, 10000);
+      if (!resp.ok) throw new Error('HTTP ' + resp.status);
+      html = await resp.text();
+      if (html && html.length > 100) break; // success
+      html = null;
+    } catch(e) {
+      console.warn('[LV] Proxy ' + (pi+1) + ' failed:', e.message);
+      html = null;
+    }
+  }
+
+  if (!html) {
+    statusEl.textContent = '❌ All proxies failed. Try pasting the text manually instead.';
+    return;
+  }
+
+  try {
     // Extract text content (basic readability)
     var parser = new DOMParser();
     var doc = parser.parseFromString(html, 'text/html');
@@ -2029,7 +2052,7 @@ document.getElementById('urlSubmit').addEventListener('click', async function() 
     }
 
     if (text.length < 50) {
-      statusEl.textContent = '❌ Could not extract enough text';
+      statusEl.textContent = '❌ Could not extract enough text from this page';
       return;
     }
 
@@ -2043,8 +2066,8 @@ document.getElementById('urlSubmit').addEventListener('click', async function() 
     statusEl.textContent = '';
     showToast('✓ Article imported (' + texts.length + ' paragraphs)');
   } catch(e) {
-    statusEl.textContent = '❌ Failed: ' + e.message;
-    console.error('[LV] URL import error:', e);
+    statusEl.textContent = '❌ Failed to parse: ' + e.message;
+    console.error('[LV] URL parse error:', e);
   }
 });
 
