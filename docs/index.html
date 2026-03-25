@@ -2539,10 +2539,14 @@ function splitIntoChunks(text) {
     // Split long paragraphs into sentences (keep punctuation with sentence)
     var sentences = para.match(/[^.!?…]+[.!?…]+[\s]*/g);
     if (sentences && sentences.length > 1) {
+      var matched = sentences.join('');
       for (var s = 0; s < sentences.length; s++) {
         var sent = sentences[s].trim();
         if (sent.length > 0) chunks.push(sent);
       }
+      // Capture any trailing text after last punctuation (e.g. "Было поздно")
+      var remainder = para.substring(matched.length).trim();
+      if (remainder.length > 0) chunks.push(remainder);
     } else {
       // Short paragraph or no sentence-ending punctuation — keep as-is
       chunks.push(para);
@@ -2855,24 +2859,41 @@ document.getElementById('btnPrevPage').addEventListener('click', function() {
 });
 
 // ── Swipe gestures for page turning ──
+var _swipeStartHandler = null;
+var _swipeEndHandler = null;
+
 function setupSwipe() {
   var body = document.getElementById('textBody');
-  var startX = 0, startY = 0, swiping = false;
 
-  body.addEventListener('touchstart', function(e) {
+  // Remove previous listeners to prevent stacking
+  if (_swipeStartHandler) {
+    body.removeEventListener('touchstart', _swipeStartHandler);
+  }
+  if (_swipeEndHandler) {
+    body.removeEventListener('touchend', _swipeEndHandler);
+  }
+
+  var startX = 0, startY = 0, startTime = 0, swiping = false;
+
+  _swipeStartHandler = function(e) {
     if (e.touches.length !== 1) return;
     startX = e.touches[0].clientX;
     startY = e.touches[0].clientY;
+    startTime = Date.now();
     swiping = true;
-  }, { passive: true });
+  };
 
-  body.addEventListener('touchend', async function(e) {
+  _swipeEndHandler = function(e) {
     if (!swiping) return;
     swiping = false;
     var endX = e.changedTouches[0].clientX;
     var endY = e.changedTouches[0].clientY;
     var dx = endX - startX;
     var dy = endY - startY;
+    var elapsed = Date.now() - startTime;
+
+    // Short tap (< 250ms, < 15px move) = word tap, not a swipe — ignore
+    if (elapsed < 250 && Math.abs(dx) < 15 && Math.abs(dy) < 15) return;
 
     // Only count horizontal swipes (dx > 60px and more horizontal than vertical)
     if (Math.abs(dx) < 60 || Math.abs(dy) > Math.abs(dx)) return;
@@ -2880,15 +2901,20 @@ function setupSwipe() {
     if (dx < 0 && currentPage < pages.length - 1) {
       // Swipe left = next page
       recordReadingSpeed();
-      var count = await autoMarkPageBlueWords();
-      if (count > 0) showToast('✓ ' + count + ' word' + (count > 1 ? 's' : '') + ' → known');
+      // Mark blue words async without blocking touch events
+      autoMarkPageBlueWords().then(function(count) {
+        if (count > 0) showToast('✓ ' + count + ' word' + (count > 1 ? 's' : '') + ' → known');
+      });
       showPage(currentPage + 1);
     } else if (dx > 0 && currentPage > 0) {
       // Swipe right = previous page
       recordReadingSpeed();
       showPage(currentPage - 1);
     }
-  }, { passive: true });
+  };
+
+  body.addEventListener('touchstart', _swipeStartHandler, { passive: true });
+  body.addEventListener('touchend', _swipeEndHandler, { passive: true });
 }
 
 // ══════════════════════════════════════════
